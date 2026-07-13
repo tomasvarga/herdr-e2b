@@ -3,3 +3,4 @@ node_modules/
 demo/
 assets/ctx-debug.log
 assets/release-notes.json
+/*.gif
