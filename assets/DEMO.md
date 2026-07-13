@@ -3,7 +3,7 @@
 `assets/demo.gif` is recorded with [VHS](https://github.com/charmbracelet/vhs).
 The tape (`assets/demo.tape`) starts a *fresh, isolated herdr session inside
 VHS's own terminal*, seeds a tiny sample project (`assets/seed-demo.sh` → `demo/`),
-and runs the real flow: `e2b-box open` provisions a **live E2B box**, mirrors the
+and runs the real flow: a **keybind** boots a **live E2B box**, mirrors the
 worktree, and drops into the box shell — all in the captured frame.
 
 ## Prerequisites
@@ -45,17 +45,38 @@ herdr session stop e2bdemo 2>/dev/null || true
 rm -f assets/release-notes.json   # herdr may drop its startup notes here
 ```
 
-## Post-process (trim herdr boot + speed the idle)
+## The keybind + its caption (why it's driven oddly)
+
+The boot is shown as the **keybind**, not a typed command. Two constraints:
+- **VHS can't emit a standalone Shift**, so the tape drives the prefix
+  (`Ctrl+Space`) + a plain-char proxy (`u`), captioned as the real
+  `prefix+shift+e` in post.
+- An **isolated `HERDR_CONFIG_PATH` session can't see the linked plugin**
+  (`plugin_not_found`), so the demo keybind opens the box via
+  `herdr agent start … -- bash -lc 'e2b-box open'` instead of
+  `herdr plugin pane open` — no plugin registry needed. (Both are in
+  `assets/demo-herdr.toml`, documented there.)
+
+## Post-process (trim boot + speed + overlay the keybind caption)
+
+`drawtext` isn't in this ffmpeg build, so render the caption as a PNG
+(ImageMagick) and `overlay` it during the boot window:
 
 ```bash
 cp assets/demo.gif /tmp/demo-raw.gif
-ffmpeg -ss 1.4 -i /tmp/demo-raw.gif \
-  -filter_complex "[0:v]setpts=0.62*PTS,fps=15,scale=1160:-1:flags=lanczos,\
-split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer" \
+magick -background '#1a1b26' -fill '#c0caf5' -font /System/Library/Fonts/Menlo.ttc \
+  -pointsize 26 -bordercolor '#1a1b26' -border 16 \
+  label:'⌨  prefix + shift + e' /tmp/cap.png
+
+ffmpeg -ss 12 -i /tmp/demo-raw.gif -i /tmp/cap.png -filter_complex \
+"[0:v]setpts=0.60*PTS,fps=12,scale=1000:-1:flags=lanczos[v];\
+[v][1:v]overlay=x=(W-w)/2:y=H-h-26:enable='between(t,1.4,6.5)'[o];\
+[o]split[a][b];[a]palettegen=max_colors=112:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=3" \
   -y assets/demo.gif
 ```
 
-Result: ~21s, ~565 KB.
+`-ss 12` skips the herdr boot; the `enable` window covers the keypress + provision.
+Result: ~17s, ~295 KB.
 
 ## Verifying (you can't watch the recording live)
 

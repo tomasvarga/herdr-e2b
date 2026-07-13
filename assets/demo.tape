@@ -29,10 +29,14 @@ Sleep 4.5s
 Type "clear" Enter
 Sleep 800ms
 Type "git log --oneline -1" Enter
-Sleep 1.6s
+Sleep 2s
 
-# one command: mirror this worktree into a fresh E2B box and drop into it
-Type "e2b-box open" Enter
+# boot the box with the KEYBIND — no typed command. VHS can't emit a standalone
+# Shift, so we drive the prefix (Ctrl+Space) + a plain-char proxy (u); the gif is
+# captioned "prefix+shift+e" in post. See assets/DEMO.md.
+Ctrl+Space
+Sleep 500ms
+Type "u"
 Sleep 11s
 
 # inside the cloud box [e2b:demo] — make a change on "the other side"
