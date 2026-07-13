@@ -71,7 +71,8 @@ up. In the worktree you want in the cloud:
     e2b-box list       # every tracked box
     e2b-box url        # preview URL (https://<port>-<id>.e2b.app)
     e2b-box logs       # tail provisioning progress
-    e2b-box sync       # re-upload the current worktree into its box
+    e2b-box sync       # re-upload the current worktree into its box (local → box)
+    e2b-box pull       # download the box's files back into this folder (box → local)
     e2b-box kill       # kill this worktree's box
 
 `e2b-box` (no args) also works in a plain worktree that predates the plugin — it
@@ -131,8 +132,10 @@ preview port, upload batch size, ignore list).
 
 ## Limitations (v0.1)
 
-- **Sync is one-way + on demand** — edits made *inside* the box don't come back
-  automatically. Commit and push from the box, or copy files out, for now.
+- **Sync is on-demand, not continuous** — `e2b-box sync` pushes local → box and
+  `e2b-box pull` brings box → local (git-aware, honors `.gitignore`, warns before
+  overwriting a dirty local tree). Neither runs automatically; review a pull with
+  your local `git diff`.
 - **Symlinks are skipped** during upload.
 - **One box per worktree**, keyed by branch name; two worktrees on the same
   branch name would collide.

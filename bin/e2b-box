@@ -11,7 +11,8 @@
 #   e2b-box list       list every tracked box
 #   e2b-box url        print the preview URL
 #   e2b-box logs       tail the provisioning log
-#   e2b-box sync       re-upload the current worktree into its box
+#   e2b-box sync       re-upload the current worktree into its box (local → box)
+#   e2b-box pull       download the box's files back into this folder (box → local)
 #   e2b-box kill       kill this worktree's box
 set -uo pipefail
 # Resolve through the ~/.local/bin symlink to the real script dir so we can
@@ -145,6 +146,24 @@ case "$cmd" in
     echo "re-uploading '$key' worktree into its box…"
     "$node_bin" "$PLUGIN_DIR/src/provision.mjs" "$payload"
     ;;
+  pull|download)
+    node_bin=$(e2b_node) || { echo "needs Node >= 22 (set HERDR_E2B_NODE)"; exit 1; }
+    st=$(field "$key" status)
+    [ "$st" = "ready" ] || { echo "no ready box for '$key' — nothing to pull"; exit 1; }
+    dest=$(box_root)
+    # Safety: pull overwrites local files with the box's versions. Warn if the
+    # local tree has uncommitted changes so nothing is silently clobbered.
+    if git -C "$dest" rev-parse --git-dir >/dev/null 2>&1 && [ -n "$(git -C "$dest" status --porcelain 2>/dev/null)" ]; then
+      echo "⚠️  $dest has uncommitted changes — pull overwrites files from the box."
+      if [ -t 0 ]; then
+        printf "continue? [y/N] "; read -r ans; case "$ans" in [Yy]*) ;; *) echo "aborted"; exit 0 ;; esac
+      fi
+    fi
+    payload=$(jq -cn --arg k "$key" --arg d "$dest" '{key:$k, destRoot:$d}')
+    echo "pulling box '$key' → $dest …"
+    "$node_bin" "$PLUGIN_DIR/src/download.mjs" "$payload"
+    echo "review what came back:  git -C '$dest' status"
+    ;;
   kill)
     sid=$(field "$key" sandboxId)
     if [ -n "$sid" ]; then ensure_e2b_path; ensure_e2b_key; command -v e2b >/dev/null 2>&1 && e2b sandbox kill "$sid" >/dev/null 2>&1 || true; fi
@@ -239,7 +258,7 @@ case "$cmd" in
     connect_shell "$key"
     ;;
   *)
-    echo "usage: e2b-box [open|up|new|shell|status|list|url|logs|sync|kill]" >&2
+    echo "usage: e2b-box [open|up|new|shell|status|list|url|logs|sync|pull|kill]" >&2
     exit 2
     ;;
 esac
