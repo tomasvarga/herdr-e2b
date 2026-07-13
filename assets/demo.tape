@@ -30,22 +30,28 @@ Sleep 700ms
 Type "cd demo" Enter
 Sleep 500ms
 Type "git log --oneline -1" Enter
-Sleep 1.8s
+Sleep 1.6s
 
 # one command: mirror this worktree into a fresh E2B box and drop into it
 Type "e2b-box open" Enter
-Sleep 13s
+Sleep 11s
 
-# we're inside the cloud box now — prompt reads [e2b:demo]
-Type "pwd" Enter
-Sleep 1.3s
+# inside the cloud box [e2b:demo] — make a change on "the other side"
 Type "ls" Enter
-Sleep 2.2s
-Type "cat README.md" Enter
+Sleep 1.6s
+Type 'echo "hello from the other side" > HELLO.md' Enter
+Sleep 1.1s
+Type "ls" Enter
+Sleep 1.8s
+
+# leave the box, then pull that change back down to the local folder
+Type "exit" Enter
+Sleep 1.4s
+Type "e2b-box pull" Enter
+Sleep 5s
+Type "cat HELLO.md" Enter
 Sleep 2.6s
 
-# leave the box (it keeps running) and tear it down
-Type "exit" Enter
-Sleep 1.6s
+# tear the box down
 Type "e2b-box kill" Enter
-Sleep 2.6s
+Sleep 2.4s

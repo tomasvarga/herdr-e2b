@@ -1,5 +1,9 @@
 # herdr config used only for the demo recording:
-# Tokyo Night theme, and don't restore old panes into the fresh session.
+# Tokyo Night theme, skip onboarding, and don't restore old panes.
+# NOTE: herdr rewrites the config it's pointed at, so the record command copies
+# this to a temp file and points HERDR_CONFIG_PATH there (see DEMO.md).
+onboarding = false
+
 [theme]
 name = "tokyo-night"
 

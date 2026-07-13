@@ -28,12 +28,17 @@ worktree, and drops into the box shell — all in the captured frame.
 ## Record
 
 ```bash
+# herdr rewrites the config it's pointed at — use a throwaway copy so the
+# committed assets/demo-herdr.toml stays pristine.
+cfg="$(mktemp).toml"; cp assets/demo-herdr.toml "$cfg"
+
 env -u HERDR_SOCKET_PATH -u HERDR_PANE_ID -u HERDR_SESSION -u HERDR_ENV \
     -u HERDR_TAB_ID -u HERDR_WORKSPACE_ID \
-    HERDR_CONFIG_PATH="$PWD/assets/demo-herdr.toml" \
+    HERDR_CONFIG_PATH="$cfg" \
     vhs assets/demo.tape
 
 herdr session stop e2bdemo 2>/dev/null || true
+rm -f assets/release-notes.json   # herdr may drop its startup notes here
 ```
 
 ## Post-process (trim herdr boot + speed the idle)
