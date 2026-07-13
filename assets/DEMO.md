@@ -56,6 +56,9 @@ The boot is shown as the **keybind**, not a typed command. Two constraints:
   `herdr agent start … -- bash -lc 'e2b-box open'` instead of
   `herdr plugin pane open` — no plugin registry needed. (Both are in
   `assets/demo-herdr.toml`, documented there.)
+- `agent start` opens a **split**, so right after the keybind the tape sends
+  `prefix+z` (`Ctrl+Space` `z`) to **zoom** the box pane full-screen — the demo
+  reads as a single pane, not a split.
 
 ## Post-process (trim boot + speed + overlay the keybind caption)
 

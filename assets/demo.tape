@@ -37,24 +37,29 @@ Sleep 2s
 Ctrl+Space
 Sleep 500ms
 Type "u"
-Sleep 11s
+Sleep 1.6s
+# zoom the box pane to full-screen so it's a single pane, not a split
+Ctrl+Space
+Sleep 400ms
+Type "z"
+Sleep 12s
 
 # inside the cloud box [e2b:demo] — make a change on "the other side"
 Type "ls" Enter
-Sleep 1.6s
+Sleep 2.4s
 Type 'echo "hello from the other side" > HELLO.md' Enter
-Sleep 1.1s
-Type "ls" Enter
 Sleep 1.8s
+Type "ls" Enter
+Sleep 2.6s
 
 # leave the box, then pull that change back down to the local folder
 Type "exit" Enter
-Sleep 1.4s
+Sleep 2s
 Type "e2b-box pull" Enter
-Sleep 5s
+Sleep 6s
 Type "cat HELLO.md" Enter
-Sleep 2.6s
+Sleep 3.4s
 
 # tear the box down
 Type "e2b-box kill" Enter
-Sleep 2.4s
+Sleep 3s
