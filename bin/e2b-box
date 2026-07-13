@@ -1,0 +1,245 @@
+#!/usr/bin/env bash
+# e2b-box — work with the E2B sandbox mirroring the current worktree.
+#
+#   e2b-box            open the box shell for the current worktree (spinner
+#                      while it boots; provisions one if none exists yet)
+#   e2b-box open       same as above
+#   e2b-box up         provision the box in the background, don't attach
+#   e2b-box new [name] create an e2b/<name> worktree (prompts if no name) + box
+#   e2b-box shell      connect a shell now (fails if the box isn't ready)
+#   e2b-box status     print this worktree's box record
+#   e2b-box list       list every tracked box
+#   e2b-box url        print the preview URL
+#   e2b-box logs       tail the provisioning log
+#   e2b-box sync       re-upload the current worktree into its box
+#   e2b-box kill       kill this worktree's box
+set -uo pipefail
+# Resolve through the ~/.local/bin symlink to the real script dir so we can
+# find lib/paths.sh (BSD readlink has no -f, so walk the links manually).
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  ldir="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [ "${SOURCE#/}" = "$SOURCE" ] && SOURCE="$ldir/$SOURCE"
+done
+DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+source "$DIR/lib/paths.sh"
+
+need() { command -v "$1" >/dev/null 2>&1 || { echo "e2b-box: '$1' not found on PATH" >&2; exit 1; }; }
+need jq
+
+# When herdr opens this as a plugin pane/action, our cwd is the NEW pane's dir
+# (often the plugin's own root) — NOT the folder you triggered from. herdr passes
+# the real one in HERDR_PLUGIN_CONTEXT_JSON; cd there so all the $PWD-based logic
+# (key, upload root, git) reflects the worktree you were actually in.
+if [ -n "${HERDR_PLUGIN_CONTEXT_JSON:-}" ]; then
+  ctx_cwd=$(printf '%s' "$HERDR_PLUGIN_CONTEXT_JSON" \
+    | jq -r '.focused_pane_cwd // .focusedPaneCwd // .workspace_cwd // .workspaceCwd // empty' 2>/dev/null)
+  [ -n "$ctx_cwd" ] && [ -d "$ctx_cwd" ] && cd "$ctx_cwd" || true
+fi
+
+# Current branch name — works on unborn branches (pre-first-commit) too.
+git_branch() {
+  git -C "$PWD" symbolic-ref --short HEAD 2>/dev/null \
+    || git -C "$PWD" rev-parse --abbrev-ref HEAD 2>/dev/null \
+    || true
+}
+
+# The folder we mirror into the box: always the dir you're in. NOT the git
+# toplevel — a loose folder inside a big mono-checkout would otherwise resolve
+# to the whole enclosing repo and upload thousands of files.
+box_root() { printf '%s' "$PWD"; }
+
+# True when $PWD is itself a git repo/worktree root.
+at_repo_root() {
+  local top
+  top=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || true)
+  [ -n "$top" ] && [ "$top" = "$PWD" ]
+}
+
+# Box identity = the folder (project) you're in — NOT the branch. A repo on
+# "main" shouldn't key as "main" (useless + collides). The folder name is what
+# you actually think of the box as.
+key_from_cwd() {
+  e2b_key "$(basename "$(box_root)")"
+}
+
+rec()   { cat "$BOXES_DIR/$1.json" 2>/dev/null; }
+field() { rec "$1" | jq -r --arg f "$2" '.[$f] // empty' 2>/dev/null; }
+
+provision_from_cwd() {
+  local k="$1" b p payload node_bin
+  b=""; at_repo_root && b=$(git_branch); [ "$b" = "HEAD" ] && b=""
+  p=$(box_root)
+  node_bin=$(e2b_node) || node_bin=""
+  if [ -z "$node_bin" ]; then
+    jq -cn --arg k "$k" --arg b "$b" --arg p "$p" \
+      '{key:$k, status:"failed", step:"needs Node >= 22 (set HERDR_E2B_NODE)", branch:$b, worktreePath:$p, workspaceId:""}' \
+      > "$BOXES_DIR/$k.json"
+    return 1
+  fi
+  jq -cn --arg k "$k" --arg b "$b" --arg p "$p" \
+    '{key:$k, status:"provisioning", step:"queued", branch:$b, worktreePath:$p, workspaceId:""}' \
+    > "$BOXES_DIR/$k.json"
+  payload=$(jq -cn --arg k "$k" --arg b "$b" --arg p "$p" \
+    '{key:$k, branch:$b, worktreePath:$p, workspaceId:"", reuse:false}')
+  nohup "$node_bin" "$PLUGIN_DIR/src/provision.mjs" "$payload" >>"$BOXES_DIR/$k.log" 2>&1 &
+  disown 2>/dev/null || true
+}
+
+# Print the ready box's details and exec an interactive shell into it.
+connect_shell() {
+  local k="$1" sid url ppath
+  sid=$(field "$k" sandboxId); url=$(field "$k" url); ppath=$(field "$k" projectPath)
+  echo "● E2B box ready for '$k'"
+  [ -n "$url" ]   && echo "  preview : $url"
+  [ -n "$ppath" ] && echo "  project : $ppath  (run: cd $ppath)"
+  echo "  sandbox : $sid"
+  ensure_e2b_path   # get a good node + the e2b CLI onto PATH (herdr may be on old node)
+  ensure_e2b_key
+  if ! command -v e2b >/dev/null 2>&1; then
+    echo "  ! e2b CLI not found — 'npm i -g @e2b/cli'. Then: e2b sandbox connect $sid" >&2
+    exec bash -i
+  fi
+  # `e2b sandbox connect` needs a raw TTY; without one it crashes and would take
+  # the pane with it. Guard so we show instructions instead of dying silently.
+  if [ -t 0 ] && [ -t 1 ]; then
+    echo "  connecting a shell — 'exit' leaves the box running (e2b-box kill to stop it)"
+    echo
+    exec e2b sandbox connect "$sid"
+  fi
+  echo
+  echo "  ! this pane has no interactive terminal, so I can't attach a live shell."
+  echo "    run in any terminal:  e2b sandbox connect $sid"
+  echo "    or open it:  ${url:-https://e2b.dev/dashboard/inspect/sandbox/$sid}"
+  exec bash -i
+}
+
+cmd="${1:-open}"
+[ $# -gt 0 ] && shift
+key="${KEY:-$(key_from_cwd)}"
+[ -z "$key" ] && key="workspace"
+
+case "$cmd" in
+  status)
+    r=$(rec "$key"); [ -n "$r" ] && printf '%s\n' "$r" | jq . || echo "no box tracked for '$key'"
+    ;;
+  list)
+    shopt -s nullglob
+    files=("$BOXES_DIR"/*.json)
+    if [ ${#files[@]} -eq 0 ]; then echo "no boxes"; else
+      printf '%-24s %-13s %-22s %s\n' KEY STATUS SANDBOX URL
+      for f in "${files[@]}"; do
+        jq -r '[.key, (.status // "-"), (.sandboxId // "-"), (.url // "-")] | @tsv' "$f"
+      done | while IFS=$'\t' read -r k s sid u; do printf '%-24s %-13s %-22s %s\n' "$k" "$s" "$sid" "$u"; done
+    fi
+    ;;
+  url)   field "$key" url ;;
+  logs)  touch "$BOXES_DIR/$key.log"; tail -n +1 -f "$BOXES_DIR/$key.log" ;;
+  sync)
+    node_bin=$(e2b_node) || { echo "needs Node >= 22 (set HERDR_E2B_NODE)"; exit 1; }
+    b=""; at_repo_root && b=$(git_branch); [ "$b" = "HEAD" ] && b=""
+    p=$(box_root)
+    payload=$(jq -cn --arg k "$key" --arg b "$b" --arg p "$p" \
+      '{key:$k, branch:$b, worktreePath:$p, workspaceId:"", reuse:true}')
+    echo "re-uploading '$key' worktree into its box…"
+    "$node_bin" "$PLUGIN_DIR/src/provision.mjs" "$payload"
+    ;;
+  kill)
+    sid=$(field "$key" sandboxId)
+    if [ -n "$sid" ]; then ensure_e2b_path; ensure_e2b_key; command -v e2b >/dev/null 2>&1 && e2b sandbox kill "$sid" >/dev/null 2>&1 || true; fi
+    rm -f "$BOXES_DIR/$key.json" "$BOXES_DIR/$key.log"
+    echo "killed box for '$key'"
+    ;;
+  new)
+    # Prompt for a name, confirm, create an e2b/<name> worktree, boot its box.
+    need node; need herdr
+    name="${1:-}"
+    if [ -z "$name" ]; then
+      if [ -t 0 ]; then
+        printf 'New E2B worktree — name (branch will be e2b/<name>): e2b/'
+        read -r name
+      else
+        echo "usage: e2b-box new <name>" >&2; exit 2
+      fi
+    fi
+    # sanitize to a safe branch leaf
+    name=$(printf '%s' "$name" | tr -c 'A-Za-z0-9._/-' '-' | sed 's#^[-/]*##; s/[-/]*$//')
+    [ -z "$name" ] && { echo "no name — aborted"; exit 1; }
+    branch="e2b/$name"
+    if [ -t 0 ]; then
+      printf 'Create worktree "%s" and boot an E2B box? [Y/n] ' "$branch"
+      read -r ans; case "${ans:-Y}" in [Nn]*) echo "aborted"; exit 0 ;; esac
+    fi
+    echo "creating worktree ${branch}…"
+    out=$(herdr worktree create --branch "$branch" --focus --json 2>&1) \
+      || { echo "worktree create failed:"; printf '%s\n' "$out"; exit 1; }
+    wt=$(printf '%s' "$out" | jq -r '[.. | .path? // empty | strings][0] // empty' 2>/dev/null)
+    ws=$(printf '%s' "$out" | jq -r '[.. | (.workspace_id? // .open_workspace_id? // empty) | strings][0] // empty' 2>/dev/null)
+    echo "worktree ready${wt:+ at $wt} — opening box (zoomed)…"
+    pane_args=(--plugin herdr-e2b --entrypoint box --placement zoomed)
+    [ -n "$ws" ] && pane_args+=(--workspace "$ws")
+    [ -n "$wt" ] && pane_args+=(--cwd "$wt")
+    exec herdr plugin pane open "${pane_args[@]}"
+    ;;
+  up)
+    # Boot the box in the background; don't attach.
+    st=$(field "$key" status)
+    case "$st" in
+      ready) echo "box for '$key' already ready — 'e2b-box open' to attach" ;;
+      provisioning) echo "box for '$key' already provisioning ($(field "$key" step)) — e2b-box logs" ;;
+      *)
+        echo "provisioning E2B box for '$key' in the background…"
+        provision_from_cwd "$key"
+        echo "watch: e2b-box logs   ·   attach when ready: e2b-box open"
+        ;;
+    esac
+    ;;
+  shell)
+    # Connect now; do not wait. Fails if the box isn't ready.
+    st=$(field "$key" status); sid=$(field "$key" sandboxId)
+    if [ "$st" != "ready" ] || [ -z "$sid" ]; then
+      echo "box for '$key' is not ready (status: ${st:-none}). Run 'e2b-box open' to boot it." >&2
+      exit 1
+    fi
+    connect_shell "$key"
+    ;;
+  open)
+    st=$(field "$key" status)
+    if [ -z "$st" ]; then
+      echo "No E2B box for '$key' yet — provisioning one now…"
+      provision_from_cwd "$key"
+    fi
+    # Spin until ready, bounded so a hung provision can't loop forever.
+    frames='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'; i=0; max=4000   # ~20 min at 0.3s/iter
+    missing=0; laststep="starting"
+    while :; do
+      raw=$(rec "$key")
+      st=$(printf '%s' "$raw" | jq -r '.status // empty' 2>/dev/null)
+      step=$(printf '%s' "$raw" | jq -r '.step // empty' 2>/dev/null)
+      [ -n "$step" ] && laststep="$step"
+      case "$st" in
+        ready) break ;;
+        failed) printf '\r\033[K'; echo "✗ E2B box failed: ${step:-$laststep}"; echo "  see: e2b-box logs"; exit 1 ;;
+        "")  # transient (mid-write / just before first write) — tolerate briefly
+          missing=$((missing + 1))
+          if [ "$missing" -ge 20 ]; then
+            printf '\r\033[K'; echo "box record for '$key' went away — see: e2b-box logs"; exit 1
+          fi ;;
+        *) missing=0 ;;
+      esac
+      if [ "$i" -ge "$max" ]; then
+        printf '\r\033[K'; echo "timed out waiting for box '$key' (last: $laststep). see: e2b-box logs"; exit 1
+      fi
+      f=${frames:$((i % ${#frames})):1}; i=$((i + 1))
+      printf '\r\033[K%s  booting E2B box for %s … %s' "$f" "$key" "$laststep"
+      sleep 0.3
+    done
+    printf '\r\033[K'
+    connect_shell "$key"
+    ;;
+  *)
+    echo "usage: e2b-box [open|up|new|shell|status|list|url|logs|sync|kill]" >&2
+    exit 2
+    ;;
+esac

@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# herdr event hook: worktree.created
+# Extract the new worktree's path/branch from the event, mark it "provisioning"
+# (so the pane can show a spinner immediately), then spawn+upload in the
+# background so the event handler returns fast.
+set -uo pipefail
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$DIR/lib/paths.sh"
+
+command -v jq >/dev/null 2>&1 || exit 0
+command -v node >/dev/null 2>&1 || exit 0
+
+ev="${HERDR_PLUGIN_EVENT_JSON:-}"
+[ -z "$ev" ] && exit 0
+
+wt_path=$(printf '%s' "$ev" | jq -r '[.. | .path? // empty | strings][0] // empty' 2>/dev/null)
+branch=$(printf '%s' "$ev" | jq -r '[.. | .branch? // empty | strings][0] // empty' 2>/dev/null)
+ws=$(printf '%s' "$ev" | jq -r '[.. | (.workspace_id? // .open_workspace_id? // empty) | strings][0] // empty' 2>/dev/null)
+[ -z "$wt_path" ] && exit 0
+
+# Auto-provision only if this branch opts in per [trigger] config
+# (mode/branch_prefix). Manual mode always skips here — use prefix+e instead.
+node "$PLUGIN_DIR/src/gate.mjs" "$branch" >/dev/null 2>&1 || exit 0
+
+key=$(e2b_key "${branch:-$(basename "$wt_path")}")
+[ -z "$key" ] && key="workspace"
+
+# Record "provisioning" up front so `e2b-box open` finds a spinner target.
+# (provision.mjs fires the desktop notification once it actually starts.)
+jq -cn --arg k "$key" --arg b "$branch" --arg p "$wt_path" --arg w "$ws" \
+  '{key:$k, status:"provisioning", step:"queued", branch:$b, worktreePath:$p, workspaceId:$w}' \
+  > "$BOXES_DIR/$key.json" 2>/dev/null
+
+# The e2b SDK needs Node >= 22; herdr may be running an older node. Resolve one
+# up front so we fail visibly instead of crashing provision.mjs at import.
+NODE_BIN=$(e2b_node) || NODE_BIN=""
+if [ -z "$NODE_BIN" ]; then
+  jq -cn --arg k "$key" --arg b "$branch" --arg p "$wt_path" --arg w "$ws" \
+    '{key:$k, status:"failed", step:"needs Node >= 22 (herdr is on an older node); set HERDR_E2B_NODE", branch:$b, worktreePath:$p, workspaceId:$w}' \
+    > "$BOXES_DIR/$key.json" 2>/dev/null
+  herdr notification show "E2B" --body "Can't provision ${branch:-$key}: needs Node >= 22" >/dev/null 2>&1 || true
+  exit 0
+fi
+
+payload=$(jq -cn --arg k "$key" --arg b "$branch" --arg p "$wt_path" --arg w "$ws" \
+  '{key:$k, branch:$b, worktreePath:$p, workspaceId:$w, reuse:false}')
+
+nohup "$NODE_BIN" "$PLUGIN_DIR/src/provision.mjs" "$payload" >>"$BOXES_DIR/$key.log" 2>&1 &
+disown 2>/dev/null || true
+exit 0

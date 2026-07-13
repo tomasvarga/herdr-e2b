@@ -1,0 +1,71 @@
+# herdr-e2b config
+# Copy to:  ~/.config/herdr/plugins/config/herdr-e2b/config.toml
+#           (or $XDG_CONFIG_HOME/herdr/plugins/config/herdr-e2b/config.toml)
+# Every key is optional; the defaults shown here are used when absent.
+
+[secrets]
+# Your E2B API key. Env E2B_API_KEY (if set) always wins over this; use this to
+# keep the key here — herdr-native, out of ~/.zshrc and out of the repo, and
+# picked up by the running herdr server with no restart. https://e2b.dev/dashboard
+# e2b_api_key = "e2b_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+[trigger]
+# When creating a worktree auto-provisions an E2B box:
+#   "marked" (default) — only branches that opt in via branch_prefix / branch_pattern
+#   "manual"           — never on create; you send one up with prefix+e or `e2b-box up`
+#   "all"              — every new worktree (careful: a paid box on every create)
+mode = "marked"
+
+# For mode="marked": branches starting with this prefix auto-provision.
+branch_prefix = "e2b/"
+
+# Optional JS regex alternative; if set, it wins over branch_prefix.
+# e.g. match e2b/* or cloud/* :
+# branch_pattern = "^(e2b|cloud)/"
+
+[sandbox]
+# Default E2B template id/name. "base" boots fast but has NO coding agent.
+# E2B ships agent templates (Claude Code, Codex, OpenCode, Amp, Grok, Devin) —
+# see https://e2b.dev/docs/agents — so a box can come up agent-ready. Set the
+# default to whichever you use most, or leave "base" and pick per branch below.
+#   template = "claude-code"
+template     = "base"
+
+# Per-branch template overrides — first matching rule (JS regex on the branch)
+# wins over `template`. Route a branch to the right agent by naming it, e.g.
+# `e2b/cc/*` gets Claude Code, `e2b/cx/*` gets Codex, everything else opencode.
+# Use the exact template name on your account (`e2b template list`) — E2B's
+# agent examples are named after the agent (claude-code, codex, opencode, …).
+# [[sandbox.template_rules]]
+# pattern  = "^e2b/cc/"          # Claude Code branches
+# template = "claude-code"
+# [[sandbox.template_rules]]
+# pattern  = "^e2b/cx/"          # Codex branches
+# template = "codex"
+# [[sandbox.template_rules]]
+# pattern  = "^e2b/"             # default agent for e2b/* branches
+# template = "opencode"
+
+# Idle window before E2B stops the box (ms). Default 1h.
+timeout_ms   = 3600000
+
+# Where the worktree is uploaded inside the box. Default (commented) derives
+# /home/user/<box-key> so `pwd` in the box reflects the project. Uncomment to
+# force a fixed path for every box.
+# project_path = "/home/user/project"
+
+# Port used to construct the preview URL (`e2b-box url`) — set it to whatever
+# your dev server listens on inside the box.
+server_port  = 3000
+
+[upload]
+# Files uploaded per batch (peak memory scales with this, not repo size).
+batch_size = 40
+
+# File selection primarily follows git: tracked files (incl. your uncommitted
+# edits) + new untracked files, honoring .gitignore. So build output, caches,
+# node_modules, etc. are NOT uploaded. This `ignore` list is an extra safety
+# filter applied on top — mainly to keep secrets like .env out even if a repo
+# happens to track them. (For non-git folders it's the only filter.)
+ignore = [".git", "node_modules", ".next", "dist", "build", ".turbo", ".cache",
+          "target", ".venv", "__pycache__", ".DS_Store", ".env", ".env.local"]

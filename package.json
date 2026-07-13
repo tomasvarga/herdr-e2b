@@ -1,0 +1,11 @@
+{
+  "name": "herdr-e2b",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "herdr plugin: mirror a git worktree into an E2B sandbox",
+  "dependencies": {
+    "e2b": "^2.32.0",
+    "@iarna/toml": "^2.2.5"
+  }
+}

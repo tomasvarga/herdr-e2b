@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# herdr event hook: worktree.removed
+# Kill the sandbox tied to this worktree so no billable box is left orphaned.
+set -uo pipefail
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$DIR/lib/paths.sh"
+
+command -v jq >/dev/null 2>&1 || exit 0
+
+ev="${HERDR_PLUGIN_EVENT_JSON:-}"
+[ -z "$ev" ] && exit 0
+
+wt_path=$(printf '%s' "$ev" | jq -r '[.. | .path? // empty | strings][0] // empty' 2>/dev/null)
+branch=$(printf '%s' "$ev" | jq -r '[.. | .branch? // empty | strings][0] // empty' 2>/dev/null)
+key=$(e2b_key "${branch:-$(basename "$wt_path")}")
+[ -z "$key" ] && exit 0
+
+sid=$(jq -r '.sandboxId // empty' "$BOXES_DIR/$key.json" 2>/dev/null)
+ensure_e2b_path
+if [ -n "$sid" ] && command -v e2b >/dev/null 2>&1; then
+  ensure_e2b_key
+  e2b sandbox kill "$sid" >/dev/null 2>&1 || true
+  herdr notification show "E2B" --body "Box for ${branch:-$key} torn down" >/dev/null 2>&1 || true
+fi
+rm -f "$BOXES_DIR/$key.json" "$BOXES_DIR/$key.log" 2>/dev/null || true
+exit 0
