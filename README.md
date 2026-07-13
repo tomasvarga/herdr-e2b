@@ -133,9 +133,10 @@ preview port, upload batch size, ignore list).
 ## Limitations (v0.1)
 
 - **Sync is on-demand, not continuous** — `e2b-box sync` pushes local → box and
-  `e2b-box pull` brings box → local (git-aware, honors `.gitignore`, warns before
-  overwriting a dirty local tree). Neither runs automatically; review a pull with
-  your local `git diff`.
+  `e2b-box pull` brings box → local (git-aware, honors `.gitignore`). `pull` only
+  writes files that differ and **reports each one** (`+ new` / `~ overwrote`),
+  leaves unchanged files untouched, never deletes local-only files, and warns
+  before clobbering a dirty git tree or a non-git folder. Review with `git diff`.
 - **Symlinks are skipped** during upload.
 - **One box per worktree**, keyed by branch name; two worktrees on the same
   branch name would collide.

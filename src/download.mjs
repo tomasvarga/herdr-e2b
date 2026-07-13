@@ -4,7 +4,7 @@
 // result with your local `git diff`.
 //
 // Usage: node download.mjs '{"key":"...","destRoot":"/abs/local/folder"}'
-import { writeFile, mkdir, appendFile } from "node:fs/promises"
+import { writeFile, readFile, mkdir, appendFile } from "node:fs/promises"
 import path from "node:path"
 import { posix } from "node:path"
 import { Sandbox } from "e2b"
@@ -58,23 +58,50 @@ async function main() {
     .filter((f) => !f.endsWith("/"))
     .filter((rel) => !isIgnored(rel, cfg.ignore))
 
-  let done = 0
+  // Classify each file against the local copy: new / overwritten / unchanged.
+  // Only write what actually differs (so unchanged files aren't touched), and
+  // report exactly what changed — the "message in case of overwrites".
+  const added = []
+  const overwritten = []
+  let unchanged = 0
   const batchSize = cfg.batchSize || 40
   for (let i = 0; i < files.length; i += batchSize) {
     const batch = files.slice(i, i + batchSize)
     await Promise.all(
       batch.map(async (rel) => {
-        const data = await sandbox.files.read(posix.join(projectPath, rel), { format: "bytes" })
+        const data = Buffer.from(await sandbox.files.read(posix.join(projectPath, rel), { format: "bytes" }))
         const dest = path.join(destRoot, rel)
+        let local = null
+        try {
+          local = await readFile(dest)
+        } catch {
+          local = null // doesn't exist locally
+        }
+        if (local === null) {
+          added.push(rel)
+        } else if (!local.equals(data)) {
+          overwritten.push(rel)
+        } else {
+          unchanged += 1
+          return // identical — leave it alone
+        }
         await mkdir(path.dirname(dest), { recursive: true })
-        await writeFile(dest, Buffer.from(data))
+        await writeFile(dest, data)
       }),
     )
-    done += batch.length
   }
 
-  await log(`pulled ${done} files from box → ${destRoot}`)
-  console.log(JSON.stringify({ ok: true, files: done }))
+  added.sort()
+  overwritten.sort()
+  for (const f of added) console.log(`  + ${f}  (new)`)
+  for (const f of overwritten) console.log(`  ~ ${f}  (overwrote local)`)
+  const changed = added.length + overwritten.length
+  console.log(
+    changed === 0
+      ? `nothing to pull — local already matches the box (${unchanged} files)`
+      : `pulled ${changed} file(s): ${added.length} new, ${overwritten.length} overwritten, ${unchanged} unchanged`,
+  )
+  await log(`pull: ${added.length} new, ${overwritten.length} overwritten, ${unchanged} unchanged → ${destRoot}`)
 }
 
 main().catch((err) => {
