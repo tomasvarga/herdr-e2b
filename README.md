@@ -86,36 +86,40 @@ runs `git init -b <branch>`. The `[upload].ignore` list is an extra safety filte
 on top (keeps `.env` out even if tracked); for non-git folders it's the only
 filter. Re-run `e2b-box sync` to push local changes up again.
 
-## Agent templates (boot the box with a coding agent ready)
+## Templates
 
-`base` is a generic image with no agent. E2B ships **coding-agent templates** so
-a box comes up with the agent already installed — set `template` (default) or a
-per-branch `template_rules` entry to one of them:
+Boxes default to **`base`** — E2B's minimal image, always available. Fine for
+trying the flow, but tight on disk with no toolchain.
 
-| Agent | Template | E2B docs |
-| --- | --- | --- |
-| Claude Code | `claude-code` | [docs](https://e2b.dev/docs/agents/claude-code) |
-| Codex | `codex` | [docs](https://e2b.dev/docs/agents/codex) |
-| OpenCode | `opencode` | [docs](https://e2b.dev/docs/agents/opencode) |
-| Amp | `amp` | [docs](https://e2b.dev/docs/agents/amp) |
-| Grok Build | `grok` | [docs](https://e2b.dev/docs/agents/grok) |
-| Devin | `devin` | [docs](https://e2b.dev/docs/agents/devin) |
+### Recommended: a bigger custom template
 
-Use the exact name on **your** account — run `e2b template list` to see what's
-built (E2B's examples are named after the agent). Then in the config:
+For real work, build a custom E2B template once — **more disk + CPU**, with your
+toolchain (node/pnpm/etc. or a coding agent) baked in — and point the config at it:
 
 ```toml
 [sandbox]
-template = "claude-code"          # default for every box
+template = "my-herdr-box"
+```
 
-[[sandbox.template_rules]]        # …or route per branch
+E2B fixes resources at build time, so a custom template is how you get a roomier
+box that boots ready. Build it with `e2b template build` (E2B's
+[template docs](https://e2b.dev/docs/sandbox-template)) — or ask your coding
+agent to set one up. `install.sh` prints this reminder.
+
+### Public agent templates
+
+E2B also ships public agent templates you can name directly (handy, though they
+can be tight on disk): `claude-code`, `codex`, `opencode`, `amp`, `grok`,
+`devin` ([docs](https://e2b.dev/docs/agents)). Route per branch with rules:
+
+```toml
+[[sandbox.template_rules]]        # e.g. e2b/cx/* → Codex
 pattern  = "^e2b/cx/"
 template = "codex"
 ```
 
-If a named template isn't available, provisioning falls back to `base` with a
-notification rather than failing. Build your own toolchain template the same
-way and point `template` at it — see E2B's [template docs](https://e2b.dev/docs/sandbox-template).
+If a configured template isn't available, provisioning falls back to `base` with
+a notification rather than failing.
 
 ## Configuration
 

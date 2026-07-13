@@ -10,11 +10,12 @@
 # e2b_api_key = "e2b_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 [sandbox]
-# Default E2B template id/name. "base" boots fast but has NO coding agent.
-# E2B ships agent templates (Claude Code, Codex, OpenCode, Amp, Grok, Devin) —
-# see https://e2b.dev/docs/agents — so a box can come up agent-ready. Set the
-# default to whichever you use most, or leave "base" and pick per branch below.
-#   template = "claude-code"
+# E2B template. "base" (default) is minimal and always available — fine to try
+# the flow, but tight on disk/tools for real work.
+# RECOMMENDED: build a bigger CUSTOM template (more disk + CPU, your toolchain
+# baked in) and set it here — see the README and install.sh. Public agent
+# templates (claude-code, codex, opencode, … https://e2b.dev/docs/agents) also
+# work but can run out of space.
 template     = "base"
 
 # Per-branch template overrides — first matching rule (JS regex on the branch)

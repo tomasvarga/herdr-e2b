@@ -56,4 +56,11 @@ if command -v node >/dev/null 2>&1 && ! node -e 'process.exit(+process.versions.
   echo "  ! Node $(node -v) on PATH is < 22 (e2b SDK needs >=22). The plugin will use a newer node if one is installed; else set HERDR_E2B_NODE=/path/to/node."
 fi
 
-echo "herdr-e2b: done. Bind prefix+e to plugin.herdr-e2b.open in your herdr config."
+# Template recommendation — "base" (the default) is minimal & tight on disk.
+echo "herdr-e2b: tip — boxes default to the 'base' template (minimal). For real"
+echo "  work, build a bigger CUSTOM template (more disk/CPU + your toolchain) and"
+echo "  set [sandbox].template in $CFG. Build with 'e2b template build'"
+echo "  (https://e2b.dev/docs/sandbox-template) — or ask your coding agent to set"
+echo "  one up. Public agent templates (claude-code, codex, opencode) also work."
+
+echo "herdr-e2b: done. Bind prefix+shift+e to plugin.herdr-e2b.open in your herdr config."

@@ -8,6 +8,9 @@ const CONFIG_DIR = process.env.XDG_CONFIG_HOME
   : path.join(os.homedir(), ".config/herdr/plugins/config/herdr-e2b")
 
 const DEFAULTS = {
+  // Safe minimal default that always exists. For real work build a bigger
+  // custom template (more disk/CPU + your toolchain) and set it here — see the
+  // README "Recommended: a bigger custom template" and install.sh.
   template: "base",
   templateRules: [], // [{pattern, template}] per-branch overrides
   sandboxTimeoutMs: 60 * 60 * 1000, // 1h
