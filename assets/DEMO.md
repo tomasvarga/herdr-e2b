@@ -32,6 +32,10 @@ worktree, and drops into the box shell — all in the captured frame.
 # committed assets/demo-herdr.toml stays pristine.
 cfg="$(mktemp).toml"; cp assets/demo-herdr.toml "$cfg"
 
+# start from a clean session (the tape also does this): a persisted e2bdemo
+# session would otherwise be reattached with its old panes restored.
+herdr session delete e2bdemo 2>/dev/null || true
+
 env -u HERDR_SOCKET_PATH -u HERDR_PANE_ID -u HERDR_SESSION -u HERDR_ENV \
     -u HERDR_TAB_ID -u HERDR_WORKSPACE_ID \
     HERDR_CONFIG_PATH="$cfg" \
