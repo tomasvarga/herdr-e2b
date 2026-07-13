@@ -9,20 +9,6 @@
 # picked up by the running herdr server with no restart. https://e2b.dev/dashboard
 # e2b_api_key = "e2b_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
-[trigger]
-# When creating a worktree auto-provisions an E2B box:
-#   "marked" (default) — only branches that opt in via branch_prefix / branch_pattern
-#   "manual"           — never on create; you send one up with prefix+e or `e2b-box up`
-#   "all"              — every new worktree (careful: a paid box on every create)
-mode = "marked"
-
-# For mode="marked": branches starting with this prefix auto-provision.
-branch_prefix = "e2b/"
-
-# Optional JS regex alternative; if set, it wins over branch_prefix.
-# e.g. match e2b/* or cloud/* :
-# branch_pattern = "^(e2b|cloud)/"
-
 [sandbox]
 # Default E2B template id/name. "base" boots fast but has NO coding agent.
 # E2B ships agent templates (Claude Code, Codex, OpenCode, Amp, Grok, Devin) —

@@ -10,15 +10,6 @@ platforms = ["macos", "linux"]
 [[build]]
 command = ["bash", "install.sh"]
 
-# Worktree created -> auto-provision a box IF its branch opts in.
-# Gated by [trigger] in config.toml:
-#   mode = "marked" (default) -> only branches matching branch_prefix (default "e2b/")
-#   mode = "manual"           -> never (use prefix+shift+e / e2b-box up)
-#   mode = "all"              -> every new worktree
-[[events]]
-on = "worktree.created"
-command = ["bash", "bin/mirror-worktree"]
-
 # Worktree removed -> kill the sandbox (no orphaned, billable boxes left behind).
 [[events]]
 on = "worktree.removed"

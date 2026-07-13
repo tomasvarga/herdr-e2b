@@ -1,5 +1,5 @@
 // Worker: spawn (or reconnect to) an E2B sandbox for a worktree and mirror the
-// tree into it. Launched detached by bin/mirror-worktree and bin/e2b-box.
+// tree into it. Launched detached by bin/e2b-box.
 // Writes live progress into the box record so the pane can render a spinner.
 //
 // Usage: node provision.mjs '<json>'

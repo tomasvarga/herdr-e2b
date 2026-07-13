@@ -8,10 +8,6 @@ const CONFIG_DIR = process.env.XDG_CONFIG_HOME
   : path.join(os.homedir(), ".config/herdr/plugins/config/herdr-e2b")
 
 const DEFAULTS = {
-  // trigger: how a worktree opts in to auto-provisioning on worktree.created
-  triggerMode: "marked", // "manual" | "marked" | "all"
-  branchPrefix: "e2b/",
-  branchPattern: null, // optional JS regex string; wins over branchPrefix
   template: "base",
   templateRules: [], // [{pattern, template}] per-branch overrides
   sandboxTimeoutMs: 60 * 60 * 1000, // 1h
@@ -45,16 +41,8 @@ export function loadConfig() {
   }
   const sandbox = file.sandbox || {}
   const upload = file.upload || {}
-  const trigger = file.trigger || {}
   const secrets = file.secrets || {}
-  const mode = ["manual", "marked", "all"].includes(trigger.mode)
-    ? trigger.mode
-    : DEFAULTS.triggerMode
   return {
-    triggerMode: mode,
-    branchPrefix: trigger.branch_prefix ?? DEFAULTS.branchPrefix,
-    branchPattern:
-      typeof trigger.branch_pattern === "string" ? trigger.branch_pattern : DEFAULTS.branchPattern,
     template: sandbox.template ?? DEFAULTS.template,
     sandboxTimeoutMs: Number(sandbox.timeout_ms ?? DEFAULTS.sandboxTimeoutMs),
     projectPath: sandbox.project_path ?? DEFAULTS.projectPath,

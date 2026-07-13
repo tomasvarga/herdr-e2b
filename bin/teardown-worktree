@@ -11,16 +11,19 @@ ev="${HERDR_PLUGIN_EVENT_JSON:-}"
 [ -z "$ev" ] && exit 0
 
 wt_path=$(printf '%s' "$ev" | jq -r '[.. | .path? // empty | strings][0] // empty' 2>/dev/null)
-branch=$(printf '%s' "$ev" | jq -r '[.. | .branch? // empty | strings][0] // empty' 2>/dev/null)
-key=$(e2b_key "${branch:-$(basename "$wt_path")}")
+[ -z "$wt_path" ] && exit 0
+# Box key = the worktree's folder name — same convention as e2b-box (which keys
+# off the folder you're in), so we find the record the box was created under.
+key=$(e2b_key "$(basename "$wt_path")")
 [ -z "$key" ] && exit 0
 
 sid=$(jq -r '.sandboxId // empty' "$BOXES_DIR/$key.json" 2>/dev/null)
+[ -f "$BOXES_DIR/$key.json" ] || exit 0   # no box for this worktree — nothing to do
 ensure_e2b_path
 if [ -n "$sid" ] && command -v e2b >/dev/null 2>&1; then
   ensure_e2b_key
   e2b sandbox kill "$sid" >/dev/null 2>&1 || true
-  herdr notification show "E2B" --body "Box for ${branch:-$key} torn down" >/dev/null 2>&1 || true
+  herdr notification show "E2B" --body "Box for $key torn down" >/dev/null 2>&1 || true
 fi
 rm -f "$BOXES_DIR/$key.json" "$BOXES_DIR/$key.log" 2>/dev/null || true
 exit 0

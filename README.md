@@ -20,9 +20,9 @@ prefix+shift+e  (or: e2b-box open) ──▶ e2b-box provisions on the spot
                                    │  marks the box "provisioning"
                                    ▼
                              node provision.mjs (detached)
-                               create E2B sandbox  ·  metadata: herdrWorktreeKey=<branch>
+                               create E2B sandbox  ·  metadata: herdrWorktreeKey=<folder>
                                upload the worktree (batched sandbox.files.write)
-                               git init on your branch  ·  record sandbox id + preview URL
+                               git init  ·  record sandbox id + preview URL
                                    │
               spinner while booting ▼
                              exec `e2b sandbox connect <id>`   ← shell in the box
@@ -30,13 +30,9 @@ prefix+shift+e  (or: e2b-box open) ──▶ e2b-box provisions on the spot
 herdr worktree remove ──▶ worktree.removed event ──▶ teardown-worktree ──▶ e2b sandbox kill
 ```
 
-Each worktree gets its own box, keyed by branch name. Nothing is auto-merged or
-pushed; the box is scratch cloud compute that starts as an exact copy of your
-worktree.
-
-**Want auto-provision on create instead?** Wire the `worktree.created` event to
-`bin/mirror-worktree` in `herdr-plugin.toml` (commented example included there),
-gating it however you like (e.g. only branches matching `e2b/*`).
+Each worktree/folder gets its own box, keyed by folder name. Nothing is
+auto-merged or pushed; the box is scratch cloud compute that starts as an exact
+copy of your worktree.
 
 ## Requirements
 
