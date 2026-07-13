@@ -2,9 +2,9 @@
 
 Send a [herdr](https://herdr.dev) git worktree to a fresh [E2B](https://e2b.dev)
 cloud sandbox **on demand** — a **snapshot upload of the live tree, uncommitted
-changes and all** (no push, no clone, no creds). Press `prefix+e` in a worktree
-to boot its box and drop into a shell; the box is torn down when you remove the
-worktree.
+changes and all** (no push, no clone, no creds). Press `prefix+shift+e` in a
+worktree to boot its box and drop into a shell; the box is torn down when you
+remove the worktree.
 
 ![herdr-e2b demo](assets/demo.gif)
 
@@ -16,7 +16,7 @@ Creating a worktree does **nothing** by itself — you decide which worktrees go
 to the cloud. When you want one up:
 
 ```
-prefix+e  (or: e2b-box open) ──▶ e2b-box provisions on the spot
+prefix+shift+e  (or: e2b-box open) ──▶ e2b-box provisions on the spot
                                    │  marks the box "provisioning"
                                    ▼
                              node provision.mjs (detached)
@@ -52,7 +52,8 @@ gating it however you like (e.g. only branches matching `e2b/*`).
     herdr plugin install tomasvarga/herdr-e2b
 
 Local dev: `herdr plugin link /path/to/herdr-e2b` then `./install.sh`.
-Then bind a key so `prefix+e` runs the `plugin.herdr-e2b.open` action.
+Then bind a key to the `plugin.herdr-e2b.open` action — e.g. `prefix+shift+e`.
+(Avoid plain `prefix+e`: that's herdr's built-in `edit_scrollback`.)
 
 The build step runs `npm install` (pulls the `e2b` SDK) and links `e2b-box`
 onto your PATH. Run interactively (`./install.sh` from a terminal), it also
@@ -67,6 +68,7 @@ up. In the worktree you want in the cloud:
 
     e2b-box            # provision (if needed) + open the box shell (spinner while booting)
     e2b-box up         # provision in the background, don't attach
+    e2b-box new [name] # create a fresh e2b/<name> worktree + box (optional; prompts if no name)
     e2b-box status     # this worktree's box record (status, sandbox id, url)
     e2b-box list       # every tracked box
     e2b-box url        # preview URL (https://<port>-<id>.e2b.app)

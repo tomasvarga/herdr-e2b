@@ -2,7 +2,7 @@ id = "herdr-e2b"
 name = "herdr-e2b"
 version = "0.1.0"
 min_herdr_version = "0.7.0"
-description = "Send a git worktree to a fresh E2B cloud sandbox on demand — a snapshot upload of the live tree, uncommitted changes and all. Press prefix+e to boot a box for the current worktree and drop into a shell; the box is torn down when the worktree is removed."
+description = "Send a git worktree to a fresh E2B cloud sandbox on demand — a snapshot upload of the live tree, uncommitted changes and all. Press prefix+shift+e to boot a box for the current worktree and drop into a shell; the box is torn down when the worktree is removed."
 platforms = ["macos", "linux"]
 
 # On `plugin install`: install node deps and link the e2b-box CLI onto PATH.
@@ -13,7 +13,7 @@ command = ["bash", "install.sh"]
 # Worktree created -> auto-provision a box IF its branch opts in.
 # Gated by [trigger] in config.toml:
 #   mode = "marked" (default) -> only branches matching branch_prefix (default "e2b/")
-#   mode = "manual"           -> never (use prefix+e / e2b-box up)
+#   mode = "manual"           -> never (use prefix+shift+e / e2b-box up)
 #   mode = "all"              -> every new worktree
 [[events]]
 on = "worktree.created"
@@ -25,7 +25,8 @@ on = "worktree.removed"
 command = ["bash", "bin/teardown-worktree"]
 
 # Send the current worktree to E2B and open its shell (provisions if needed).
-# Bind a key (e.g. prefix+e) to plugin.herdr-e2b.open.
+# Bind a key to plugin.herdr-e2b.open — e.g. prefix+shift+e. (Avoid plain
+# prefix+e: that's herdr's built-in edit_scrollback.)
 [[actions]]
 id = "open"
 title = "Open E2B box"
@@ -33,8 +34,9 @@ contexts = ["workspace"]
 command = ["bash", "-lc", "e2b-box open"]
 
 # Start a brand-new e2b/<name> worktree + box: prompts for a name, confirms,
-# creates the worktree, then boots its box. Bind prefix+shift+e to the "new"
-# pane below (needs a TTY for the prompt).
+# creates the worktree, then boots its box. Optional — bind a FREE key to the
+# "new" pane below if you want it (needs a TTY for the prompt). Not bound by
+# default; `e2b-box new` also runs it from any shell.
 [[actions]]
 id = "new"
 title = "New E2B worktree"
@@ -50,8 +52,8 @@ title = "e2b"
 placement = "zoomed"
 command = ["bash", "-lc", "e2b-box open"]
 
-# Prompt pane for `e2b-box new` (bind prefix+shift+e). Overlay so it's a quick
-# transient prompt; it creates the worktree, then opens the box pane zoomed.
+# Prompt pane for `e2b-box new` (optional; bind a free key). Overlay so it's a
+# quick transient prompt; it creates the worktree, then opens the box pane zoomed.
 [[panes]]
 id = "new"
 title = "e2b new"
