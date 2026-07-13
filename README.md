@@ -86,9 +86,6 @@ runs `git init -b <branch>`. The `[upload].ignore` list is an extra safety filte
 on top (keeps `.env` out even if tracked); for non-git folders it's the only
 filter. Re-run `e2b-box sync` to push local changes up again.
 
-Ported from [`e2b-dev/opencode-e2b`](https://github.com/e2b-dev/opencode-e2b)'s
-snapshot-upload approach.
-
 ## Agent templates (boot the box with a coding agent ready)
 
 `base` is a generic image with no agent. E2B ships **coding-agent templates** so
