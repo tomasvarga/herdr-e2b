@@ -3,15 +3,15 @@
 // build output/node_modules don't come back. Writes files in place; review the
 // result with your local `git diff`.
 //
-// Usage: node download.mjs '{"key":"...","destRoot":"/abs/local/folder"}'
+// Usage: node download.js '{"key":"...","destRoot":"/abs/local/folder"}'
 import { writeFile, readFile, mkdir, appendFile } from "node:fs/promises"
 import path from "node:path"
 import { posix } from "node:path"
 import { Sandbox } from "e2b"
 
-import { loadConfig } from "./config.mjs"
-import { requireApiKey } from "./shared.mjs"
-import { readRecord, logPath } from "./store.mjs"
+import { loadConfig } from "./config.js"
+import { requireApiKey } from "./shared.js"
+import { readRecord, logPath } from "./store.js"
 
 const input = JSON.parse(process.argv[2] || "{}")
 const { key, destRoot } = input

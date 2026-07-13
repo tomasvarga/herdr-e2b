@@ -19,7 +19,7 @@ to the cloud. When you want one up:
 prefix+shift+e  (or: e2b-box open) ──▶ e2b-box provisions on the spot
                                    │  marks the box "provisioning"
                                    ▼
-                             node provision.mjs (detached)
+                             node provision.js (detached)
                                create E2B sandbox  ·  metadata: herdrWorktreeKey=<folder>
                                upload the worktree (batched sandbox.files.write)
                                git init  ·  record sandbox id + preview URL
@@ -135,8 +135,8 @@ preview port, upload batch size, ignore list).
   leaves unchanged files untouched, never deletes local-only files, and warns
   before clobbering a dirty git tree or a non-git folder. Review with `git diff`.
 - **Symlinks are skipped** during upload.
-- **One box per worktree**, keyed by branch name; two worktrees on the same
-  branch name would collide.
+- **One box per worktree/folder**, keyed by folder name; two folders with the
+  same name would collide.
 - Removing a worktree **kills** its box (cost control) — this is intentional.
 
 ## License

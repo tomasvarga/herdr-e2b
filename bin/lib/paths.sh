@@ -14,7 +14,7 @@ e2b_key() {
 }
 
 # Resolve a Node >= 22. The `e2b` SDK require()s an ESM-only chalk, which older
-# node (e.g. herdr may launch under v20) can't load — provision.mjs then dies at
+# node (e.g. herdr may launch under v20) can't load — provision.js then dies at
 # import. Prefer $HERDR_E2B_NODE, then PATH node if new enough, then newest nvm.
 # Prints the node path, or exits non-zero if none is >= 22.
 e2b_node() {
@@ -59,7 +59,7 @@ ensure_e2b_path() {
 ensure_e2b_key() {
   if [ -z "${E2B_API_KEY:-}" ] && command -v node >/dev/null 2>&1; then
     local k
-    k="$(node "$PLUGIN_DIR/src/resolve-key.mjs" 2>/dev/null || true)"
+    k="$(node "$PLUGIN_DIR/src/resolve-key.js" 2>/dev/null || true)"
     [ -n "$k" ] && export E2B_API_KEY="$k"
   fi
 }

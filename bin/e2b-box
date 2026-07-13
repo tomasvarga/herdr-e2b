@@ -83,7 +83,7 @@ provision_from_cwd() {
     > "$BOXES_DIR/$k.json"
   payload=$(jq -cn --arg k "$k" --arg b "$b" --arg p "$p" \
     '{key:$k, branch:$b, worktreePath:$p, workspaceId:"", reuse:false}')
-  nohup "$node_bin" "$PLUGIN_DIR/src/provision.mjs" "$payload" >>"$BOXES_DIR/$k.log" 2>&1 &
+  nohup "$node_bin" "$PLUGIN_DIR/src/provision.js" "$payload" >>"$BOXES_DIR/$k.log" 2>&1 &
   disown 2>/dev/null || true
 }
 
@@ -143,7 +143,7 @@ case "$cmd" in
     payload=$(jq -cn --arg k "$key" --arg b "$b" --arg p "$p" \
       '{key:$k, branch:$b, worktreePath:$p, workspaceId:"", reuse:true}')
     echo "re-uploading '$key' worktree into its box…"
-    "$node_bin" "$PLUGIN_DIR/src/provision.mjs" "$payload"
+    "$node_bin" "$PLUGIN_DIR/src/provision.js" "$payload"
     ;;
   pull|download)
     node_bin=$(e2b_node) || { echo "needs Node >= 22 (set HERDR_E2B_NODE)"; exit 1; }
@@ -168,7 +168,7 @@ case "$cmd" in
     fi
     payload=$(jq -cn --arg k "$key" --arg d "$dest" '{key:$k, destRoot:$d}')
     echo "pulling box '$key' → $dest …"
-    "$node_bin" "$PLUGIN_DIR/src/download.mjs" "$payload"
+    "$node_bin" "$PLUGIN_DIR/src/download.js" "$payload"
     git -C "$dest" rev-parse --git-dir >/dev/null 2>&1 && echo "review:  git -C '$dest' diff"
     ;;
   kill)

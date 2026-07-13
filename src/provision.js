@@ -2,15 +2,15 @@
 // tree into it. Launched detached by bin/e2b-box.
 // Writes live progress into the box record so the pane can render a spinner.
 //
-// Usage: node provision.mjs '<json>'
+// Usage: node provision.js '<json>'
 //   json: { key, branch, worktreePath, workspaceId, reuse? }
 import { appendFile } from "node:fs/promises"
 import { Sandbox } from "e2b"
 
-import { loadConfig, resolveTemplate } from "./config.mjs"
-import { requireApiKey, notify } from "./shared.mjs"
-import { writeRecord, readRecord, logPath } from "./store.mjs"
-import { uploadSnapshot } from "./upload.mjs"
+import { loadConfig, resolveTemplate } from "./config.js"
+import { requireApiKey, notify } from "./shared.js"
+import { writeRecord, readRecord, logPath } from "./store.js"
+import { uploadSnapshot } from "./upload.js"
 
 const input = JSON.parse(process.argv[2] || "{}")
 const { key, branch, worktreePath, workspaceId, reuse } = input
