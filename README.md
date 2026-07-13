@@ -68,7 +68,6 @@ up. In the worktree you want in the cloud:
 
     e2b-box            # provision (if needed) + open the box shell (spinner while booting)
     e2b-box up         # provision in the background, don't attach
-    e2b-box new [name] # create a fresh e2b/<name> worktree + box (optional; prompts if no name)
     e2b-box status     # this worktree's box record (status, sandbox id, url)
     e2b-box list       # every tracked box
     e2b-box url        # preview URL (https://<port>-<id>.e2b.app)

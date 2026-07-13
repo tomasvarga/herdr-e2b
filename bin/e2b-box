@@ -5,7 +5,6 @@
 #                      while it boots; provisions one if none exists yet)
 #   e2b-box open       same as above
 #   e2b-box up         provision the box in the background, don't attach
-#   e2b-box new [name] create an e2b/<name> worktree (prompts if no name) + box
 #   e2b-box shell      connect a shell now (fails if the box isn't ready)
 #   e2b-box status     print this worktree's box record
 #   e2b-box list       list every tracked box
@@ -178,37 +177,6 @@ case "$cmd" in
     rm -f "$BOXES_DIR/$key.json" "$BOXES_DIR/$key.log"
     echo "killed box for '$key'"
     ;;
-  new)
-    # Prompt for a name, confirm, create an e2b/<name> worktree, boot its box.
-    need node; need herdr
-    name="${1:-}"
-    if [ -z "$name" ]; then
-      if [ -t 0 ]; then
-        printf 'New E2B worktree — name (branch will be e2b/<name>): e2b/'
-        read -r name
-      else
-        echo "usage: e2b-box new <name>" >&2; exit 2
-      fi
-    fi
-    # sanitize to a safe branch leaf
-    name=$(printf '%s' "$name" | tr -c 'A-Za-z0-9._/-' '-' | sed 's#^[-/]*##; s/[-/]*$//')
-    [ -z "$name" ] && { echo "no name — aborted"; exit 1; }
-    branch="e2b/$name"
-    if [ -t 0 ]; then
-      printf 'Create worktree "%s" and boot an E2B box? [Y/n] ' "$branch"
-      read -r ans; case "${ans:-Y}" in [Nn]*) echo "aborted"; exit 0 ;; esac
-    fi
-    echo "creating worktree ${branch}…"
-    out=$(herdr worktree create --branch "$branch" --focus --json 2>&1) \
-      || { echo "worktree create failed:"; printf '%s\n' "$out"; exit 1; }
-    wt=$(printf '%s' "$out" | jq -r '[.. | .path? // empty | strings][0] // empty' 2>/dev/null)
-    ws=$(printf '%s' "$out" | jq -r '[.. | (.workspace_id? // .open_workspace_id? // empty) | strings][0] // empty' 2>/dev/null)
-    echo "worktree ready${wt:+ at $wt} — opening box (zoomed)…"
-    pane_args=(--plugin herdr-e2b --entrypoint box --placement zoomed)
-    [ -n "$ws" ] && pane_args+=(--workspace "$ws")
-    [ -n "$wt" ] && pane_args+=(--cwd "$wt")
-    exec herdr plugin pane open "${pane_args[@]}"
-    ;;
   up)
     # Boot the box in the background; don't attach.
     st=$(field "$key" status)
@@ -266,7 +234,7 @@ case "$cmd" in
     connect_shell "$key"
     ;;
   *)
-    echo "usage: e2b-box [open|up|new|shell|status|list|url|logs|sync|pull|kill]" >&2
+    echo "usage: e2b-box [open|up|shell|status|list|url|logs|sync|pull|kill]" >&2
     exit 2
     ;;
 esac
