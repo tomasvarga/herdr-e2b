@@ -23,13 +23,14 @@ Type 'clear' Enter
 Show
 Sleep 500ms
 
-# fresh herdr session, opened in the demo project
+# fresh herdr session, opened in the demo project — sit on an empty prompt.
 Type "herdr --session e2bdemo" Enter
 Sleep 4.5s
 Type "clear" Enter
-Sleep 800ms
-Type "git log --oneline -1" Enter
-Sleep 2s
+
+# empty pane, a beat of waiting (the "prefix+shift+e" caption is overlaid here
+# in post, on the empty screen, BEFORE anything provisions).
+Sleep 4.5s
 
 # boot the box with the KEYBIND — no typed command. VHS can't emit a standalone
 # Shift, so we drive the prefix (Ctrl+Space) + a plain-char proxy (u); the gif is
