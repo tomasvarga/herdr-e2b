@@ -1,1 +1,5 @@
 node_modules/
+# generated fresh by assets/seed-demo.sh for each recording
+demo/
+assets/ctx-debug.log
+assets/release-notes.json

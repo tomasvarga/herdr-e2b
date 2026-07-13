@@ -6,6 +6,8 @@ changes and all** (no push, no clone, no creds). Press `prefix+e` in a worktree
 to boot its box and drop into a shell; the box is torn down when you remove the
 worktree.
 
+![herdr-e2b demo](assets/demo.gif)
+
 > Status: early (v0.1). macOS + Linux.
 
 ## The loop

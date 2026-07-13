@@ -1,0 +1,7 @@
+# herdr config used only for the demo recording:
+# Tokyo Night theme, and don't restore old panes into the fresh session.
+[theme]
+name = "tokyo-night"
+
+[experimental]
+pane_history = false
