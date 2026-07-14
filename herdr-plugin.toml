@@ -15,14 +15,50 @@ command = ["bash", "install.sh"]
 on = "worktree.removed"
 command = ["bash", "bin/teardown-worktree"]
 
+# Actions register the plugin's verbs with herdr. Invoke any of them with
+#   herdr plugin action invoke <id> --plugin herdr-e2b
+# or bind a key (optional) in your herdr config, e.g.:
+#   [[keys.command]]
+#   key = "prefix+shift+e"
+#   command = "herdr plugin action invoke open --plugin herdr-e2b"
+# (Avoid plain prefix+e — that's herdr's built-in edit_scrollback.) Only `open`
+# needs an interactive pane; the one-shot verbs below print to the plugin command
+# log (herdr plugin log list --plugin herdr-e2b).
+
 # Send the current worktree to E2B and open its shell (provisions if needed).
-# Bind a key to plugin.herdr-e2b.open — e.g. prefix+shift+e. (Avoid plain
-# prefix+e: that's herdr's built-in edit_scrollback.)
 [[actions]]
 id = "open"
 title = "Open E2B box"
 contexts = ["workspace"]
 command = ["bash", "-lc", "e2b-box open"]
+
+# Re-upload the current worktree into its box (local → box).
+[[actions]]
+id = "sync"
+title = "Sync worktree → box"
+contexts = ["workspace"]
+command = ["bash", "-lc", "e2b-box sync"]
+
+# Download the box's files back into this folder (box → local).
+[[actions]]
+id = "pull"
+title = "Pull box → worktree"
+contexts = ["workspace"]
+command = ["bash", "-lc", "e2b-box pull"]
+
+# Print this worktree's box record (status, sandbox id, url).
+[[actions]]
+id = "status"
+title = "Box status"
+contexts = ["workspace"]
+command = ["bash", "-lc", "e2b-box status"]
+
+# Kill this worktree's box.
+[[actions]]
+id = "kill"
+title = "Kill E2B box"
+contexts = ["workspace"]
+command = ["bash", "-lc", "e2b-box kill"]
 
 # Persistent pane entrypoint (herdr's pane menu): shows a spinner while the box
 # boots, then execs a shell inside the sandbox. Zoomed (full-screen) — you're

@@ -78,6 +78,23 @@ up. In the worktree you want in the cloud:
 `e2b-box` (no args) also works in a plain worktree that predates the plugin — it
 provisions a box on the spot.
 
+### herdr actions
+
+The common verbs are also registered as herdr **actions** (`open`, `sync`,
+`pull`, `status`, `kill`), so you can drive them without typing the CLI name.
+They act on the **focused pane's** worktree. Invoke one directly:
+
+    herdr plugin action invoke sync --plugin herdr-e2b
+
+or bind a key (optional) in your herdr config:
+
+    [[keys.command]]
+    key = "prefix+shift+e"
+    command = "herdr plugin action invoke open --plugin herdr-e2b"
+
+`open` opens the interactive box pane; the one-shot verbs print to the plugin
+command log (`herdr plugin log list --plugin herdr-e2b`).
+
 ## How code gets in
 
 File selection follows **git**: `git ls-files --cached --others --exclude-standard`
