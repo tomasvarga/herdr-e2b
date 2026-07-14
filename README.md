@@ -109,8 +109,18 @@ agent to set one up. `install.sh` prints this reminder.
 ### Public agent templates
 
 E2B also ships public agent templates you can name directly (handy, though they
-can be tight on disk): `claude-code`, `codex`, `opencode`, `amp`, `grok`,
-`devin` ([docs](https://e2b.dev/docs/agents)). Route per branch with rules:
+can be tight on disk):
+
+| Agent | Template | E2B docs |
+| --- | --- | --- |
+| Claude Code | `claude-code` | [docs](https://e2b.dev/docs/agents/claude-code) |
+| Codex | `codex` | [docs](https://e2b.dev/docs/agents/codex) |
+| OpenCode | `opencode` | [docs](https://e2b.dev/docs/agents/opencode) |
+| Amp | `amp` | [docs](https://e2b.dev/docs/agents/amp) |
+| Grok Build | `grok` | [docs](https://e2b.dev/docs/agents/grok) |
+| Devin | `devin` | [docs](https://e2b.dev/docs/agents/devin) |
+
+Route per branch with rules:
 
 ```toml
 [[sandbox.template_rules]]        # e.g. e2b/cx/* → Codex
