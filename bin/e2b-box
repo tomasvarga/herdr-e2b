@@ -152,7 +152,7 @@ connect_shell() {
   # `e2b sandbox connect` needs a raw TTY; without one it crashes and would take
   # the pane with it. Guard so we show instructions instead of dying silently.
   if [ -t 0 ] && [ -t 1 ]; then
-    [ "${E2B_DASH:-}" != 1 ] && { echo "  connecting a shell — type 'exit' to come back here (pull / kill / leave)"; echo; }
+    [ "${E2B_DASH:-}" != 1 ] && { echo "  attaching a shell in the sandbox — type 'exit' when done, then you'll pick: [p]ull changes · [k]ill · [L]eave running"; echo; }
     e2b sandbox connect "$sid"        # blocks until you exit the sandbox shell
     [ "${E2B_DASH:-}" = 1 ] && exit 0 # dashboard owns the post-exit pull/kill/leave
     on_close_prompt "$k" "$sid"
