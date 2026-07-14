@@ -1,6 +1,5 @@
 node_modules/
-# generated fresh by assets/seed-demo.sh for each recording (root only — must
-# not swallow tui/demo/, whose seed.sh is tracked)
+# stray local demo scratch at the repo root (real demo data lives in /tmp)
 /demo/
 assets/ctx-debug.log
 assets/release-notes.json

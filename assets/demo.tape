@@ -1,62 +1,55 @@
-# VHS tape — herdr-e2b.  Record: see assets/DEMO.md (needs the HERDR_* unset +
-# HERDR_CONFIG_PATH env). Starts a fresh herdr session inside VHS and mirrors a
-# local project into a real E2B box, then drops into the box shell.
+# VHS tape — herdr-e2b box-open flow (prefix+shift+e).
+# Mirrors a real worktree into a live E2B sandbox, drops into its shell, then
+# pulls the change back. The launch command is typed while Hidden so the gif
+# shows the keybind (caption overlaid in post), not a typed command.
+# Needs an E2B API key configured. Record: vhs assets/demo.tape
 Output assets/demo.gif
 Require bash
 Set Shell bash
 Set Theme "TokyoNight"
-Set FontSize 13
-Set Width 1200
-Set Height 720
+Set FontSize 14
+Set Width 1180
+Set Height 680
 Set Padding 18
-Set TypingSpeed 45ms
+Set TypingSpeed 55ms
 
-# hidden: PATH + delete any persisted demo session + seed a fresh project,
-# then cd into it so herdr opens *in the demo project* (workspace "demo").
+# hidden: PATH + a throwaway git project in an isolated state dir
 Hide
 Type 'export PATH="$HOME/.local/bin:$HOME/.nvm/versions/node/v24.14.1/bin:$PATH"' Enter
-Type 'herdr session delete e2bdemo >/dev/null 2>&1; true' Enter
-Type 'bash assets/seed-demo.sh' Enter
-Type 'cd demo' Enter
-Sleep 2s
+Type 'export HERDR_E2B_STATE_DIR=/tmp/e2b-demo-box; rm -rf "$HERDR_E2B_STATE_DIR" /tmp/e2b-demo-proj; mkdir -p /tmp/e2b-demo-proj/demo' Enter
+Type 'cd /tmp/e2b-demo-proj/demo && git init -q -b main && printf "# demo\n" > README.md && printf "console.log(\"hi\")\n" > index.js && printf "node_modules/\n" > .gitignore && git add -A && git -c user.email=d@d.co -c user.name=d commit -qm init' Enter
 Type 'clear' Enter
 Show
-Sleep 500ms
 
-# fresh herdr session, opened in the demo project — sit on an empty prompt.
-Type "herdr --session e2bdemo" Enter
-Sleep 4.5s
-Type "clear" Enter
+# empty prompt — the "prefix+shift+e" caption is overlaid here in post
+Sleep 2500ms
 
-# empty pane, a beat of waiting (the "prefix+shift+e" caption is overlaid here
-# in post, on the empty screen, BEFORE anything provisions).
-Sleep 4.5s
+# drive the keybind (typed hidden so the gif shows the keybind, not a command)
+Hide
+Type 'e2b-box open' Enter
+Show
 
-# boot the box with the KEYBIND — no typed command. VHS can't emit a standalone
-# Shift, so we drive the prefix (Ctrl+Space) + a plain-char proxy (u); the gif is
-# captioned "prefix+shift+e" in post. See assets/DEMO.md.
-Ctrl+Space
-Sleep 500ms
-Type "u"
-Sleep 1.6s
-# zoom the box pane to full-screen so it's a single pane, not a split
-Ctrl+Space
-Sleep 400ms
-Type "z"
-Sleep 12s
+# provisioning spinner → the sandbox shell [e2b:demo]
+Sleep 10s
 
-# inside the cloud box [e2b:demo] — make a change on "the other side"
-Type "ls" Enter
-Sleep 2.4s
-Type 'echo "hello from the other side" > HELLO.md' Enter
-Sleep 1.8s
-Type "ls" Enter
-Sleep 2.6s
+# work "in the cloud"
+Type 'ls' Enter
+Sleep 2s
+Type 'echo "edited in the cloud" > NOTE.md' Enter
+Sleep 1800ms
 
-# leave the box, then pull that change back down to the local folder
-# exit the box → the on-close prompt asks what to do; choose "p" to pull the
-# change back down to the local folder.
-Type "exit" Enter
-Sleep 2.6s
-Type "p" Enter
-Sleep 6s
+# leave the shell → the on-close prompt → pull the change back down
+Type 'exit' Enter
+Sleep 2800ms
+Type 'p' Enter
+Sleep 4s
+
+# ── Caption overlay (post-process) ─────────────────────────────────────────
+#   magick -background '#1a1b26' -fill '#c0caf5' -font /System/Library/Fonts/Menlo.ttc \
+#     -pointsize 26 label:'⌨  prefix + shift + e' -bordercolor '#7aa2f7' -border 3 \
+#     -bordercolor '#1a1b26' -border 15 cap.png
+#   ffmpeg -i demo.gif -i cap.png -filter_complex \
+#     "[0:v]fps=12,scale=1100:-1:flags=lanczos[v];\
+#      [v][1:v]overlay=(main_w-overlay_w)/2:main_h*0.58:enable='between(t,0.6,2.4)'[o];\
+#      [o]split[a][b];[a]palettegen=max_colors=128:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=3" \
+#     -y demo.gif
