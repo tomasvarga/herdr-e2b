@@ -1,5 +1,7 @@
-# VHS tape — herdr-e2b dashboard (Ratatui TUI), rendered in tokyo-night.
-# Record: vhs assets/dashboard.tape   (needs the built tui binary + sample data)
+# VHS tape — herdr-e2b dashboard (Ratatui TUI), tokyo-night, with the full
+# open → work → return-to-the-board flow against a REAL sandbox.
+# Needs an E2B API key configured (seed-live-demo.sh provisions a real 'web').
+# Record: vhs assets/dashboard.tape
 Output assets/dashboard.gif
 Require bash
 Set Shell bash
@@ -10,53 +12,43 @@ Set Height 680
 Set Padding 18
 Set TypingSpeed 55ms
 
-# hidden: seed sample sandboxes, isolate theme state to a scratch dir, force the
-# tokyo-night theme, and launch — so the gif opens straight on the board.
+# hidden: PATH (e2b CLI + node), isolate demo state, seed 5 placeholders + one
+# REAL 'web' sandbox (blocks until ready), force tokyo-night, launch the board.
 Hide
+Type 'export PATH="$HOME/.local/bin:$HOME/.nvm/versions/node/v24.14.1/bin:$PATH"' Enter
 Type 'cd /Users/tomasvarga/Documents/GitHub/herdr-e2b' Enter
-Type 'bash tui/demo/seed.sh >/dev/null 2>&1' Enter
-Type 'export HERDR_E2B_STATE_DIR=/tmp/e2b-dash-demo E2B_DASH_THEME=tokyo-night; rm -rf "$HERDR_E2B_STATE_DIR"; mkdir -p "$HERDR_E2B_STATE_DIR"' Enter
+Type 'export HERDR_E2B_STATE_DIR=/tmp/e2b-dash-demo E2B_DASH_THEME=tokyo-night' Enter
+Type 'bash tui/demo/seed-live-demo.sh "$HERDR_E2B_STATE_DIR" >/dev/null 2>&1' Enter
 Type 'clear' Enter
-Type 'tui/target/release/e2b-dash tui/demo/sample-boxes' Enter
+Type 'tui/target/release/e2b-dash' Enter
 Sleep 2s
 Show
 Sleep 1600ms
 
-# walk the fleet — colored statuses (● ready · ◐ provisioning · paused · failed);
-# the "target:" line tracks the selected sandbox's worktree.
+# walk the fleet down to the real 'web' sandbox (statuses + target line update)
 Down
-Sleep 850ms
+Sleep 700ms
 Down
-Sleep 850ms
+Sleep 700ms
+Down
+Sleep 700ms
 Down
 Sleep 1000ms
-Down
-Sleep 900ms
 
-# actions confirm and name the exact target — sync (local → sandbox) …
-Type "s"
-Sleep 2000ms
-Type "n"
-Sleep 700ms
-# … and pull (sandbox → local), the other direction
-Type "p"
-Sleep 2000ms
-Type "n"
-Sleep 700ms
+# open it — the board hands its pane to the sandbox shell (E2B_DASH quiet mode)
+Type "o"
+Sleep 5s
+Type "ls" Enter
+Sleep 2s
+Type 'echo "made in the sandbox" > NOTE.md' Enter
+Sleep 1800ms
+
+# exit the shell — and you land right back on the board, which offers pull/kill/leave
+Type "exit" Enter
+Sleep 3s
+Type "l"
+Sleep 1500ms
 
 # quit
 Type "q"
 Sleep 500ms
-
-# ── Caption overlay (post-process; VHS can't do timed overlays) ─────────────
-# After recording, captions are composited with ImageMagick + ffmpeg:
-#   cap(){ magick -background '#1a1b26' -fill '#c0caf5' -font /System/Library/Fonts/Menlo.ttc \
-#      -pointsize 26 label:"$1" -bordercolor "$2" -border 3 -bordercolor '#1a1b26' -border 15 "$3"; }
-#   cap "▸  a live board of your E2B sandboxes"    '#7aa2f7' c1.png
-#   cap "every action confirms + names the target" '#9ece6a' c2.png
-#   ffmpeg -i dashboard.gif -i c1.png -i c2.png -filter_complex \
-#    "[0:v]fps=12,scale=1100:-1:flags=lanczos[v];\
-#     [v][1:v]overlay=(main_w-overlay_w)/2:main_h*0.60:enable='between(t,0.5,4.5)'[o1];\
-#     [o1][2:v]overlay=(main_w-overlay_w)/2:main_h*0.60:enable='between(t,6.5,11.5)'[o2];\
-#     [o2]split[a][b];[a]palettegen=max_colors=128:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=3" \
-#    -y dashboard.gif
