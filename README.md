@@ -8,6 +8,11 @@ remove the worktree.
 
 ![herdr-e2b demo](assets/demo.gif)
 
+…or drive it all from a **dashboard** (`prefix+shift+d`) — a live board of your
+sandboxes; open one, work in its shell, and land right back on the board:
+
+![herdr-e2b dashboard](assets/dashboard.gif)
+
 ## The loop
 
 Creating a worktree does **nothing** by itself — you decide which worktrees go
@@ -96,10 +101,8 @@ command log (`herdr plugin log list --plugin herdr-e2b`).
 ## Dashboard (optional TUI)
 
 A live board of every tracked sandbox — status, sandbox id, files — with per-sandbox
-actions and theming. Run `e2b-dash`, open the **dashboard** pane, or invoke the
-`dashboard` action.
-
-![herdr-e2b dashboard](assets/dashboard.gif)
+actions and theming (shown above). Run `e2b-dash`, open the **dashboard** pane, or
+invoke the `dashboard` action.
 
 - **Keys:** `↑/↓` move · `o` open · `s` sync · `p` pull · `x` kill · `r` refresh ·
   `T` theme · `q` quit. `sync`/`pull`/`kill` **confirm first** and show the exact
