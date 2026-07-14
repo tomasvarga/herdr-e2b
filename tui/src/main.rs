@@ -66,7 +66,7 @@ fn goto_worktree(label: &str, wt: &str) -> String {
         .unwrap_or_else(|| "herdr".into());
     // Match an open pane by its cwd, focus that workspace; else open the worktree.
     let script = format!(
-        "wt={wt}; ws=$({h} pane list 2>/dev/null | jq -r --arg wt \"$wt\" '.result.panes[] | select(.cwd==$wt or .foreground_cwd==$wt) | .workspace_id' | head -1); \
+        "wt={wt}; ws=$({h} pane list 2>/dev/null | jq -r --arg wt \"$wt\" '.result.panes[] | select(.cwd==$wt or (.cwd|startswith($wt+\"/\")) or .foreground_cwd==$wt or (.foreground_cwd|startswith($wt+\"/\"))) | .workspace_id' | head -1); \
 if [ -n \"$ws\" ]; then {h} workspace focus \"$ws\" >/dev/null 2>&1 && echo focused; \
 elif [ -d \"$wt\" ]; then {h} workspace create --cwd \"$wt\" --focus >/dev/null 2>&1 && echo opened; \
 else echo missing; fi",
