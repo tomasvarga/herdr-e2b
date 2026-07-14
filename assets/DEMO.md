@@ -3,7 +3,8 @@
 `assets/demo.gif` is recorded with [VHS](https://github.com/charmbracelet/vhs).
 The tape (`assets/demo.tape`) starts a *fresh, isolated herdr session inside
 VHS's own terminal*, seeds a tiny sample project (`assets/seed-demo.sh` → `demo/`),
-and runs the real flow: a **keybind** boots a **live E2B box**, mirrors the
+and runs the real flow: a **keybind** boots a **live E2B box**, and on `exit` the
+on-close prompt (`[p]ull / [k]ill / [L]eave`) pulls the change back. It mirrors the
 worktree, and drops into the box shell — all in the captured frame.
 
 ## Prerequisites

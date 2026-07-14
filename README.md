@@ -25,7 +25,10 @@ prefix+shift+e  (or: e2b-box open) ──▶ e2b-box provisions on the spot
                                git init  ·  record sandbox id + preview URL
                                    │
               spinner while booting ▼
-                             exec `e2b sandbox connect <id>`   ← shell in the box
+                             `e2b sandbox connect <id>`   ← shell in the box
+                                   │  (type `exit` in the box)
+                                   ▼
+                             on close: [p]ull changes down · [k]ill · [L]eave running
 
 herdr worktree remove ──▶ worktree.removed event ──▶ teardown-worktree ──▶ e2b sandbox kill
 ```

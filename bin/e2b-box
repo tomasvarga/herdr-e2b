@@ -87,7 +87,34 @@ provision_from_cwd() {
   disown 2>/dev/null || true
 }
 
-# Print the ready box's details and exec an interactive shell into it.
+# After you exit the box shell, decide what to do with the box: pull your work
+# back down, kill it, or leave it (auto_pause will pause it at the timeout).
+on_close_prompt() {
+  local k="$1" sid="$2" ans dest node_bin
+  [ -t 0 ] || return 0   # non-interactive: leave the box as-is
+  echo
+  printf "left box '%s' — [p]ull changes down · [k]ill it · [L]eave running: " "$k"
+  read -r ans
+  case "${ans:-L}" in
+    p|P|pull)
+      node_bin=$(e2b_node) || { echo "  needs Node >= 22 to pull"; return 0; }
+      dest=$(box_root)
+      echo "  pulling '$k' → $dest …"
+      "$node_bin" "$PLUGIN_DIR/src/download.js" "$(jq -cn --arg k "$k" --arg d "$dest" '{key:$k,destRoot:$d}')"
+      git -C "$dest" rev-parse --git-dir >/dev/null 2>&1 && echo "  review: git -C '$dest' diff"
+      echo "  box left running (auto-pauses at the timeout; e2b-box kill to stop it)."
+      ;;
+    k|K|kill)
+      e2b sandbox kill "$sid" >/dev/null 2>&1 && echo "  killed box '$k'."
+      rm -f "$BOXES_DIR/$k.json" "$BOXES_DIR/$k.log"
+      ;;
+    *)
+      echo "  left running — auto-pauses at the idle timeout; 'e2b-box open' to return."
+      ;;
+  esac
+}
+
+# Print the ready box's details and open an interactive shell into it.
 connect_shell() {
   local k="$1" sid url ppath
   sid=$(field "$k" sandboxId); url=$(field "$k" url); ppath=$(field "$k" projectPath)
@@ -108,9 +135,11 @@ connect_shell() {
   # `e2b sandbox connect` needs a raw TTY; without one it crashes and would take
   # the pane with it. Guard so we show instructions instead of dying silently.
   if [ -t 0 ] && [ -t 1 ]; then
-    echo "  connecting a shell — 'exit' leaves the box running (e2b-box kill to stop it)"
+    echo "  connecting a shell — type 'exit' to come back here (pull / kill / leave)"
     echo
-    exec e2b sandbox connect "$sid"
+    e2b sandbox connect "$sid"        # blocks until you exit the box shell
+    on_close_prompt "$k" "$sid"
+    exit 0
   fi
   echo
   echo "  ! this pane has no interactive terminal, so I can't attach a live shell."

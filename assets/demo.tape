@@ -54,13 +54,9 @@ Type "ls" Enter
 Sleep 2.6s
 
 # leave the box, then pull that change back down to the local folder
+# exit the box → the on-close prompt asks what to do; choose "p" to pull the
+# change back down to the local folder.
 Type "exit" Enter
-Sleep 2s
-Type "e2b-box pull" Enter
+Sleep 2.6s
+Type "p" Enter
 Sleep 6s
-Type "cat HELLO.md" Enter
-Sleep 3.4s
-
-# tear the box down
-Type "e2b-box kill" Enter
-Sleep 3s
