@@ -61,7 +61,11 @@ async function main() {
   if (reuse && prev?.sandboxId) {
     await step("reconnecting to box")
     try {
-      sandbox = await Sandbox.connect(prev.sandboxId, { apiKey, timeoutMs: cfg.sandboxTimeoutMs })
+      sandbox = await Sandbox.connect(prev.sandboxId, {
+        apiKey,
+        timeoutMs: cfg.sandboxTimeoutMs,
+        autoResume: true, // wake a paused (auto_pause) box
+      })
     } catch (e) {
       // Box died (idle timeout / killed) — fall through to a fresh one.
       await log(`reconnect to ${prev.sandboxId} failed (${(e && e.message) || e}); creating a fresh box`)
@@ -71,7 +75,7 @@ async function main() {
   if (!sandbox) {
     const template = resolveTemplate(branch, cfg)
     await step(`creating sandbox (${template})`)
-    const opts = { apiKey, timeoutMs: cfg.sandboxTimeoutMs, metadata }
+    const opts = { apiKey, timeoutMs: cfg.sandboxTimeoutMs, metadata, autoPause: cfg.autoPause }
     try {
       sandbox = await Sandbox.create(template, opts)
     } catch (e) {

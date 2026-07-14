@@ -101,6 +101,10 @@ connect_shell() {
     echo "  ! e2b CLI not found — 'npm i -g @e2b/cli'. Then: e2b sandbox connect $sid" >&2
     exec bash -i
   fi
+  # If the box is paused (auto_pause), resume it first so connect attaches live.
+  if ! e2b sandbox list --state running --format json 2>/dev/null | grep -q "$sid"; then
+    echo "  resuming paused box…"; e2b sandbox resume "$sid" >/dev/null 2>&1 || true
+  fi
   # `e2b sandbox connect` needs a raw TTY; without one it crashes and would take
   # the pane with it. Guard so we show instructions instead of dying silently.
   if [ -t 0 ] && [ -t 1 ]; then
@@ -124,6 +128,9 @@ box_alive() {
   ensure_e2b_path
   command -v e2b >/dev/null 2>&1 || return 0
   out=$(e2b sandbox list --state running --format json 2>/dev/null) || return 0
+  printf '%s' "$out" | grep -q "$sid" && return 0
+  # a paused (auto_pause) box is still alive — resumable on reconnect
+  out=$(e2b sandbox list --state paused --format json 2>/dev/null) || return 0
   printf '%s' "$out" | grep -q "$sid"
 }
 

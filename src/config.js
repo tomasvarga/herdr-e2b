@@ -14,6 +14,7 @@ const DEFAULTS = {
   template: "base",
   templateRules: [], // [{pattern, template}] per-branch overrides
   sandboxTimeoutMs: 60 * 60 * 1000, // 1h
+  autoPause: false, // pause (not kill) the box on timeout; resume on reconnect
   projectPath: "/home/user/project", // E2B's conventional working dir
   serverPort: 3000,
   batchSize: 40,
@@ -48,6 +49,7 @@ export function loadConfig() {
   return {
     template: sandbox.template ?? DEFAULTS.template,
     sandboxTimeoutMs: Number(sandbox.timeout_ms ?? DEFAULTS.sandboxTimeoutMs),
+    autoPause: sandbox.auto_pause === true,
     projectPath: sandbox.project_path ?? DEFAULTS.projectPath,
     serverPort: Number(sandbox.server_port ?? DEFAULTS.serverPort),
     batchSize: Number(upload.batch_size ?? DEFAULTS.batchSize),

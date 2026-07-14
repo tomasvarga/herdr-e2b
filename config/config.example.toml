@@ -39,6 +39,12 @@ template     = "base"
 #   timeout_ms = 10800000   # 3h  (needs a paid E2B plan)
 timeout_ms   = 3600000
 
+# Pause the box on idle-timeout instead of killing it, and resume it WITH ITS
+# STATE on reconnect — so `prefix+shift+e` picks up where you left off instead
+# of reprovisioning a fresh box. Default false. NOTE: auto-pause typically needs
+# a paid E2B plan (not on hobby).
+auto_pause   = false
+
 # Where the worktree is uploaded inside the box. Default (commented) derives
 # /home/user/<box-key> so `pwd` in the box reflects the project. Uncomment to
 # force a fixed path for every box.
