@@ -33,7 +33,10 @@ template     = "base"
 # pattern  = "^e2b/"             # default agent for e2b/* branches
 # template = "opencode"
 
-# Idle window before E2B stops the box (ms). Default 1h.
+# Idle window before E2B stops the box (ms). Default 1h — which is also the cap
+# on E2B's hobby/free plan (a longer value there just fails). On a paid plan,
+# bump it for longer-lived boxes; 3h is a sane minimum:
+#   timeout_ms = 10800000   # 3h  (needs a paid E2B plan)
 timeout_ms   = 3600000
 
 # Where the worktree is uploaded inside the box. Default (commented) derives

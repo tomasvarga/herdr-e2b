@@ -149,6 +149,10 @@ preview port, upload batch size, ignore list).
 - **One box per worktree/folder**, keyed by folder name; two folders with the
   same name would collide.
 - Removing a worktree **kills** its box (cost control) — this is intentional.
+- **Boxes idle-time-out** after `[sandbox].timeout_ms` (default 1h, and the cap
+  on E2B's hobby plan). If the box has died, `e2b-box open` detects it and
+  **reprovisions** a fresh one rather than failing. Bump `timeout_ms` (paid plan)
+  for longer-lived boxes.
 
 ## License
 
