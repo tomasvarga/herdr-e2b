@@ -1,5 +1,5 @@
-// Pull the box's project files back down into the local folder (reverse of the
-// upload). git-aware in the box (tracked + untracked, honors .gitignore), so
+// Pull the sandbox's project files back down into the local folder (reverse of the
+// upload). git-aware in the sandbox (tracked + untracked, honors .gitignore), so
 // build output/node_modules don't come back. Writes files in place; review the
 // result with your local `git diff`.
 //
@@ -39,13 +39,13 @@ async function main() {
   const apiKey = requireApiKey(cfg)
   const rec = await readRecord(key)
   if (!rec?.sandboxId) {
-    console.error(`no box for '${key}'`)
+    console.error(`no sandbox for '${key}'`)
     process.exit(1)
   }
   const projectPath = rec.projectPath || "/home/user/project"
   const sandbox = await Sandbox.connect(rec.sandboxId, { apiKey, timeoutMs: cfg.sandboxTimeoutMs })
 
-  // List the box's files (git-aware; fall back to find for a non-repo box dir).
+  // List the sandbox's files (git-aware; fall back to find for a non-repo sandbox dir).
   const listed = await sandbox.commands.run(
     `cd '${projectPath}' && ` +
       "(git ls-files --cached --others --exclude-standard 2>/dev/null " +
@@ -98,7 +98,7 @@ async function main() {
   const changed = added.length + overwritten.length
   console.log(
     changed === 0
-      ? `nothing to pull — local already matches the box (${unchanged} files)`
+      ? `nothing to pull — local already matches the sandbox (${unchanged} files)`
       : `pulled ${changed} file(s): ${added.length} new, ${overwritten.length} overwritten, ${unchanged} unchanged`,
   )
   await log(`pull: ${added.length} new, ${overwritten.length} overwritten, ${unchanged} unchanged → ${destRoot}`)

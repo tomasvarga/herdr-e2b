@@ -207,8 +207,8 @@ impl Verb {
     }
     fn confirm(self, label: &str, wt: &str) -> String {
         match self {
-            Verb::Sync => format!("SYNC  local → box   overwrites the BOX from {wt}   [y/N]"),
-            Verb::Pull => format!("PULL  box → local   overwrites {wt} from the box   [y/N]"),
+            Verb::Sync => format!("SYNC  local → sandbox   overwrites the SANDBOX from {wt}   [y/N]"),
+            Verb::Pull => format!("PULL  sandbox → local   overwrites {wt} from the sandbox   [y/N]"),
             Verb::Kill => format!("KILL  '{label}'   destroys the sandbox   [y/N]"),
         }
     }
@@ -295,11 +295,11 @@ fn draw(f: &mut Frame, app: &mut App) {
     ])
     .split(f.area());
 
-    let head = Line::from(format!("  herdr-e2b · {} boxes · theme: {}", app.boxes.len(), THEMES[app.theme_idx]))
+    let head = Line::from(format!("  herdr-e2b · {} sandboxes · theme: {}", app.boxes.len(), THEMES[app.theme_idx]))
         .style(Style::default().fg(t.accent).add_modifier(Modifier::BOLD));
     f.render_widget(Paragraph::new(head), chunks[0]);
 
-    let header = Row::new(["BOX", "STATUS", "SANDBOX", "FILES", "STEP"])
+    let header = Row::new(["NAME", "STATUS", "SANDBOX", "FILES", "STEP"])
         .style(Style::default().fg(t.accent).add_modifier(Modifier::BOLD))
         .bottom_margin(1);
 

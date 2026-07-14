@@ -34,27 +34,27 @@ template     = "base"
 # pattern  = "^e2b/"             # default agent for e2b/* branches
 # template = "opencode"
 
-# Idle window before E2B stops the box (ms). Default 1h — which is also the cap
+# Idle window before E2B stops the sandbox (ms). Default 1h — which is also the cap
 # on E2B's hobby/free plan (a longer value there just fails). On a paid plan,
-# bump it for longer-lived boxes; 3h is a sane minimum:
+# bump it for longer-lived sandboxes; 3h is a sane minimum:
 #   timeout_ms = 10800000   # 3h  (needs a paid E2B plan)
 timeout_ms   = 3600000
 
-# Pause the box on idle-timeout instead of killing it (SDK lifecycle
+# Pause the sandbox on idle-timeout instead of killing it (SDK lifecycle
 # onTimeout=pause), so its state is preserved. Works on the hobby plan and is the
 # best way to not lose work at the 1h timeout. Default false; set true to enable.
 auto_pause   = false
-# Only when auto_pause: wake the box (restore its memory) automatically on the
+# Only when auto_pause: wake the sandbox (restore its memory) automatically on the
 # next connect. Default true. Set false to keep a filesystem-only snapshot that
 # cold-boots on reconnect (loses running processes, but cheaper to keep paused).
 auto_resume  = true
 
-# Where the worktree is uploaded inside the box. Defaults to /home/user/project.
+# Where the worktree is uploaded inside the sandbox. Defaults to /home/user/project.
 # Uncomment to point it elsewhere.
 # project_path = "/home/user/project"
 
 # Port used to construct the preview URL (`e2b-box url`) — set it to whatever
-# your dev server listens on inside the box.
+# your dev server listens on inside the sandbox.
 server_port  = 3000
 
 [dashboard]

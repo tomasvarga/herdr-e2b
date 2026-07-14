@@ -1,12 +1,12 @@
 // Worker: ensure an E2B sandbox exists for a worktree (reconnect to the tracked
 // one, or create a fresh one), and optionally mirror the local tree into it.
-// Launched by bin/e2b-box. Writes live progress into the box record so the pane
+// Launched by bin/e2b-box. Writes live progress into the sandbox record so the pane
 // can render a spinner.
 //
 // Usage: node provision.js '<json>'
 //   json: { key, branch, worktreePath, workspaceId, op? }
-//   op:  "ensure" (default) — reconnect-or-create; upload only a FRESH box, so
-//                             reconnecting never clobbers in-box edits.
+//   op:  "ensure" (default) — reconnect-or-create; upload only a FRESH sandbox, so
+//                             reconnecting never clobbers in-sandbox edits.
 //        "sync"             — ensure, then always re-upload the local tree.
 import { appendFile } from "node:fs/promises"
 import { Sandbox, NotFoundError } from "e2b"
@@ -28,7 +28,7 @@ if (!key || !worktreePath) {
 }
 
 const cfg = loadConfig()
-// Where the worktree lands inside the box. Defaults to /home/user/project
+// Where the worktree lands inside the sandbox. Defaults to /home/user/project
 // (config [sandbox].project_path); falls back to /home/user/<key> only if that
 // is explicitly blanked.
 const projectPath = cfg.projectPath || `/home/user/${key}`
@@ -68,21 +68,21 @@ async function main() {
   let created = false
   const prev = await readRecord(key)
   if (prev?.sandboxId) {
-    notify("E2B", `${op === "sync" ? "Syncing" : "Reconnecting"} box for ${branch || key}…`)
-    await step("reconnecting to box")
+    notify("E2B", `${op === "sync" ? "Syncing" : "Reconnecting"} sandbox for ${branch || key}…`)
+    await step("reconnecting to sandbox")
     try {
-      // connect() auto-resumes a paused box (from auto_pause) on its own.
+      // connect() auto-resumes a paused sandbox (from auto_pause) on its own.
       sandbox = await Sandbox.connect(prev.sandboxId, {
         apiKey,
         timeoutMs: cfg.sandboxTimeoutMs,
       })
     } catch (e) {
       if (e instanceof NotFoundError) {
-        // The box is genuinely gone (idle-timed-out / killed) — make a fresh one.
-        await log(`box ${prev.sandboxId} not found (${(e && e.message) || e}); creating a fresh one`)
+        // The sandbox is genuinely gone (idle-timed-out / killed) — make a fresh one.
+        await log(`sandbox ${prev.sandboxId} not found (${(e && e.message) || e}); creating a fresh one`)
         sandbox = null
       } else {
-        // Transient (network / rate-limit / auth). Do NOT create a second box
+        // Transient (network / rate-limit / auth). Do NOT create a second sandbox
         // behind the old one (it may still be alive and billable) — surface the
         // error and leave the record intact so the next open retries the reconnect.
         throw e
@@ -91,7 +91,7 @@ async function main() {
   }
 
   if (!sandbox) {
-    notify("E2B", `Booting box for ${branch || key}…`)
+    notify("E2B", `Booting sandbox for ${branch || key}…`)
     const template = resolveTemplate(branch, cfg)
     await step(`creating sandbox (${template})`)
     const opts = {
@@ -121,8 +121,8 @@ async function main() {
   await step("preparing project dir", { sandboxId: sandbox.sandboxId })
   await sandbox.commands.run(`mkdir -p '${projectPath}'`)
 
-  // Upload the local tree only for a FRESH box (it's empty) or an explicit sync.
-  // Reconnecting to an existing box must NOT overwrite in-box edits — pull them
+  // Upload the local tree only for a FRESH sandbox (it's empty) or an explicit sync.
+  // Reconnecting to an existing sandbox must NOT overwrite in-sandbox edits — pull them
   // down first (`e2b-box pull`) if you want them locally.
   let files = prev?.files ?? 0
   if (created || op === "sync") {
@@ -146,9 +146,9 @@ async function main() {
     )
   }
 
-  // Shell personalization is one-time box setup — a cyan [e2b:label] prompt,
+  // Shell personalization is one-time sandbox setup — a cyan [e2b:label] prompt,
   // HERDR_E2B markers, and landing in the project dir on connect. Only a fresh
-  // box needs it (a reconnected box already has it).
+  // sandbox needs it (a reconnected sandbox already has it).
   if (created) {
     await step("personalizing shell")
     const rc =
@@ -178,7 +178,7 @@ async function main() {
     files,
   })
   await log(`ready · ${sandbox.sandboxId} · ${files} files · ${url}`)
-  notify("E2B", `Box ready for ${branch || key}`)
+  notify("E2B", `Sandbox ready for ${branch || key}`)
   console.log(JSON.stringify({ ok: true, sandboxId: sandbox.sandboxId, url, files }))
 }
 
@@ -186,6 +186,6 @@ main().catch(async (err) => {
   const msg = (err && err.message) || String(err)
   await writeRecord(key, { status: "failed", step: msg })
   await log(`FAILED: ${(err && err.stack) || msg}`)
-  notify("E2B", `Box failed for ${branch || key}: ${msg}`)
+  notify("E2B", `Sandbox failed for ${branch || key}: ${msg}`)
   process.exit(1)
 })

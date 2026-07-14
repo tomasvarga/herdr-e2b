@@ -3,7 +3,7 @@
 Send a [herdr](https://herdr.dev) git worktree to a fresh [E2B](https://e2b.dev)
 cloud sandbox **on demand** — a **snapshot upload of the live tree, uncommitted
 changes and all** (no push, no clone, no creds). Press `prefix+shift+e` in a
-worktree to boot its box and drop into a shell; the box is torn down when you
+worktree to boot its sandbox and drop into a shell; the sandbox is torn down when you
 remove the worktree.
 
 ![herdr-e2b demo](assets/demo.gif)
@@ -17,7 +17,7 @@ to the cloud. When you want one up:
 
 ```
 prefix+shift+e  (or: e2b-box open) ──▶ e2b-box provisions on the spot
-                                   │  marks the box "provisioning"
+                                   │  marks the sandbox "provisioning"
                                    ▼
                              node provision.js (detached)
                                create E2B sandbox  ·  metadata: herdrWorktreeKey=<folder>
@@ -25,22 +25,22 @@ prefix+shift+e  (or: e2b-box open) ──▶ e2b-box provisions on the spot
                                git init  ·  record sandbox id + preview URL
                                    │
               spinner while booting ▼
-                             `e2b sandbox connect <id>`   ← shell in the box
-                                   │  (type `exit` in the box)
+                             `e2b sandbox connect <id>`   ← shell in the sandbox
+                                   │  (type `exit` in the sandbox)
                                    ▼
                              on close: [p]ull changes down · [k]ill · [L]eave running
 
 herdr worktree remove ──▶ worktree.removed event ──▶ teardown-worktree ──▶ e2b sandbox kill
 ```
 
-Each worktree/folder gets its own box, keyed by folder name. Nothing is
-auto-merged or pushed; the box is scratch cloud compute that starts as an exact
+Each worktree/folder gets its own sandbox, keyed by folder name. Nothing is
+auto-merged or pushed; the sandbox is scratch cloud compute that starts as an exact
 copy of your worktree.
 
 ## Requirements
 
 - **herdr ≥ 0.7.0**, **Node.js ≥ 18**, **jq**
-- **E2B**: the `@e2b/cli` (`e2b` on PATH, for the box shell) and an API key
+- **E2B**: the `@e2b/cli` (`e2b` on PATH, for the sandbox shell) and an API key
   ([dashboard](https://e2b.dev/dashboard)). Provide the key **either** way:
   - `[secrets].e2b_api_key` in the plugin config (herdr-native, out of your
     shell profile and the repo, picked up by the running server — **recommended**), or
@@ -65,18 +65,18 @@ input, `chmod 600`); it skips this silently during `herdr plugin install`
 Create worktrees the way you normally do — nothing happens until you send one
 up. In the worktree you want in the cloud:
 
-    e2b-box            # provision (if needed) + open the box shell (spinner while booting)
+    e2b-box            # provision (if needed) + open the sandbox shell (spinner while booting)
     e2b-box up         # provision in the background, don't attach
-    e2b-box status     # this worktree's box record (status, sandbox id, url)
-    e2b-box list       # every tracked box
+    e2b-box status     # this worktree's sandbox record (status, sandbox id, url)
+    e2b-box list       # every tracked sandbox
     e2b-box url        # preview URL (https://<port>-<id>.e2b.app)
     e2b-box logs       # tail provisioning progress
-    e2b-box sync       # re-upload the current worktree into its box (local → box)
-    e2b-box pull       # download the box's files back into this folder (box → local)
-    e2b-box kill       # kill this worktree's box
+    e2b-box sync       # re-upload the current worktree into its sandbox (local → sandbox)
+    e2b-box pull       # download the sandbox's files back into this folder (sandbox → local)
+    e2b-box kill       # kill this worktree's sandbox
 
 `e2b-box` (no args) also works in a plain worktree that predates the plugin — it
-provisions a box on the spot.
+provisions a sandbox on the spot.
 
 ### herdr actions
 
@@ -92,12 +92,12 @@ or bind a key (optional) in your herdr config:
     key = "prefix+shift+e"
     command = "herdr plugin action invoke open --plugin herdr-e2b"
 
-`open` opens the interactive box pane; the one-shot verbs print to the plugin
+`open` opens the interactive sandbox pane; the one-shot verbs print to the plugin
 command log (`herdr plugin log list --plugin herdr-e2b`).
 
 ## Dashboard (optional TUI)
 
-A live board of every tracked box — status, sandbox id, files — with per-box
+A live board of every tracked sandbox — status, sandbox id, files — with per-sandbox
 actions and theming. Run `e2b-dash`, open the **dashboard** pane, or invoke the
 `dashboard` action.
 
@@ -105,8 +105,8 @@ actions and theming. Run `e2b-dash`, open the **dashboard** pane, or invoke the
 
 - **Keys:** `↑/↓` move · `o` open · `s` sync · `p` pull · `x` kill · `r` refresh ·
   `T` theme · `q` quit. `sync`/`pull`/`kill` **confirm first** and show the exact
-  target worktree; each action runs against *that box's own* worktree.
-- **`open`** hands the pane to the box shell, and on exit the dashboard offers
+  target worktree; each action runs against *that sandbox's own* worktree.
+- **`open`** hands the pane to the sandbox shell, and on exit the dashboard offers
   pull / kill / leave.
 - **Themes:** defaults to your terminal's palette; `T` cycles
   `terminal · solarized-light · tokyonight · dracula · nord · gruvbox` (your
@@ -123,14 +123,14 @@ File selection follows **git**: `git ls-files --cached --others --exclude-standa
 — tracked files (**including your uncommitted edits**) plus new untracked files,
 **honoring `.gitignore`**. So build output, caches, `node_modules`, coverage, etc.
 are *not* uploaded — only what git considers part of the repo. The files are sent
-via the E2B SDK's `files.write` in batches; `.git` itself is skipped and the box
+via the E2B SDK's `files.write` in batches; `.git` itself is skipped and the sandbox
 runs `git init -b <branch>`. The `[upload].ignore` list is an extra safety filter
 on top (keeps `.env` out even if tracked); for non-git folders it's the only
 filter. Re-run `e2b-box sync` to push local changes up again.
 
 ## Templates
 
-Boxes default to **`base`** — E2B's minimal image, always available. Fine for
+Sandboxes default to **`base`** — E2B's minimal image, always available. Fine for
 trying the flow, but tight on disk with no toolchain.
 
 ### Recommended: a bigger custom template
@@ -140,11 +140,11 @@ toolchain (node/pnpm/etc. or a coding agent) baked in — and point the config a
 
 ```toml
 [sandbox]
-template = "my-herdr-box"
+template = "my-herdr-sandbox"
 ```
 
 E2B fixes resources at build time, so a custom template is how you get a roomier
-box that boots ready. Build it with `e2b template build` (E2B's
+sandbox that boots ready. Build it with `e2b template build` (E2B's
 [template docs](https://e2b.dev/docs/sandbox-template)) — or ask your coding
 agent to set one up. `install.sh` prints this reminder.
 
@@ -186,22 +186,22 @@ preview port, upload batch size, ignore list).
 
 ## Limitations (v0.1)
 
-- **Sync is on-demand, not continuous** — `e2b-box sync` pushes local → box and
-  `e2b-box pull` brings box → local (git-aware, honors `.gitignore`). `pull` only
+- **Sync is on-demand, not continuous** — `e2b-box sync` pushes local → sandbox and
+  `e2b-box pull` brings sandbox → local (git-aware, honors `.gitignore`). `pull` only
   writes files that differ and **reports each one** (`+ new` / `~ overwrote`),
   leaves unchanged files untouched, never deletes local-only files, and warns
   before clobbering a dirty git tree or a non-git folder. Review with `git diff`.
 - **Symlinks are skipped** during upload.
-- **One box per worktree/folder**, keyed by folder name; two folders with the
+- **One sandbox per worktree/folder**, keyed by folder name; two folders with the
   same name would collide.
-- Removing a worktree **kills** its box (cost control) — this is intentional.
-- **Boxes idle-time-out** after `[sandbox].timeout_ms` (default 1h, and the cap
-  on E2B's hobby plan). If the box has died, `e2b-box open` detects it and
+- Removing a worktree **kills** its sandbox (cost control) — this is intentional.
+- **Sandboxes idle-time-out** after `[sandbox].timeout_ms` (default 1h, and the cap
+  on E2B's hobby plan). If the sandbox has died, `e2b-box open` detects it and
   **reprovisions** a fresh one rather than failing. Bump `timeout_ms` (paid plan)
-  for longer-lived boxes, or set `[sandbox].auto_pause = true` (**works on the
+  for longer-lived sandboxes, or set `[sandbox].auto_pause = true` (**works on the
   hobby plan**) to **pause instead of kill** on timeout — reconnecting resumes
-  the box with its state instead of starting fresh. On hobby (1h cap) this is the
-  best way to not lose in-box work when the timeout hits.
+  the sandbox with its state instead of starting fresh. On hobby (1h cap) this is the
+  best way to not lose in-sandbox work when the timeout hits.
 
 ## License
 

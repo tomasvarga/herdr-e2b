@@ -19,7 +19,7 @@ mkdir -p "$BIN"
 ln -sf "$DIR/bin/e2b-box" "$BIN/e2b-box"
 echo "herdr-e2b: linked e2b-box -> $BIN/e2b-box"
 
-command -v e2b >/dev/null 2>&1 || echo "  ! e2b CLI not found — 'npm i -g @e2b/cli' (needed for the box shell)"
+command -v e2b >/dev/null 2>&1 || echo "  ! e2b CLI not found — 'npm i -g @e2b/cli' (needed for the sandbox shell)"
 
 # Optional dashboard TUI (Rust/Ratatui). Prefer a committed PREBUILT binary so no
 # dev tools are needed; else build from source with cargo; else skip. The core
@@ -87,10 +87,10 @@ if command -v node >/dev/null 2>&1 && ! node -e 'process.exit(+process.versions.
 fi
 
 # Template recommendation — "base" (the default) is minimal & tight on disk.
-echo "herdr-e2b: tip — boxes default to the 'base' template (minimal). For real"
+echo "herdr-e2b: tip — sandboxes default to the 'base' template (minimal). For real"
 echo "  work, build a bigger CUSTOM template (more disk/CPU + your toolchain) and"
 echo "  set [sandbox].template in $CFG. Build with 'e2b template build'"
 echo "  (https://e2b.dev/docs/sandbox-template) — or ask your coding agent to set"
 echo "  one up. Public agent templates (claude, codex, opencode, amp, grok) also work."
 
-echo "herdr-e2b: done. Bind prefix+shift+e to plugin.herdr-e2b.open in your herdr config."
+echo "herdr-e2b: done. Bind prefix+shift+e (open sandbox) and prefix+shift+d (dashboard) in your herdr config."
