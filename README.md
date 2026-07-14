@@ -36,13 +36,14 @@ prefix+shift+e  (or: e2b-box open) ──▶ e2b-box provisions on the spot
 herdr worktree remove ──▶ worktree.removed event ──▶ teardown-worktree ──▶ e2b sandbox kill
 ```
 
-Each worktree/folder gets its own sandbox, keyed by folder name. Nothing is
+Each worktree/folder gets its own sandbox, keyed by the folder's path. Nothing is
 auto-merged or pushed; the sandbox is scratch cloud compute that starts as an exact
 copy of your worktree.
 
 ## Requirements
 
-- **herdr ≥ 0.7.0**, **Node.js ≥ 18**, **jq**
+- **herdr ≥ 0.7.0**, **Node.js ≥ 22** (the `e2b` SDK needs it; the plugin
+  auto-resolves a newer Node if herdr itself runs on an older one), **jq**
 - **E2B**: the `@e2b/cli` (`e2b` on PATH, for the sandbox shell) and an API key
   ([dashboard](https://e2b.dev/dashboard)). Provide the key **either** way:
   - `[secrets].e2b_api_key` in the plugin config (herdr-native, out of your
@@ -197,8 +198,9 @@ preview port, upload batch size, ignore list).
   leaves unchanged files untouched, never deletes local-only files, and warns
   before clobbering a dirty git tree or a non-git folder. Review with `git diff`.
 - **Symlinks are skipped** during upload.
-- **One sandbox per worktree/folder**, keyed by folder name; two folders with the
-  same name would collide.
+- **One sandbox per worktree/folder**, keyed by the folder's **path** (so
+  same-named folders in different locations don't collide); the folder name is the
+  display label.
 - Removing a worktree **kills** its sandbox (cost control) — this is intentional.
 - **Sandboxes idle-time-out** after `[sandbox].timeout_ms` (default 1h, and the cap
   on E2B's hobby plan). If the sandbox has died, `e2b-box open` detects it and

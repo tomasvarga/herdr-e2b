@@ -1,7 +1,7 @@
-// POC: Ratatui (Rust) live dashboard for herdr-e2b boxes.
-// Reads the box JSON records, renders an auto-refreshing table, and runs
-// e2b-box actions AGAINST EACH BOX'S OWN worktreePath (shown in the UI), with a
-// confirm gate on the ones that overwrite or destroy. Single static binary.
+// herdr-e2b dashboard — a live Ratatui board of every tracked E2B sandbox.
+// Reads the sandbox JSON records, renders an auto-refreshing table, and runs
+// e2b-box actions against EACH SANDBOX'S OWN worktreePath (shown in the UI), with
+// a confirm gate on the ones that overwrite or destroy. Single static binary.
 //
 // Theming: defaults to the TERMINAL's own palette (so it inherits whatever
 // theme your terminal / herdr uses). Cycle live with `T`, or pick a start theme

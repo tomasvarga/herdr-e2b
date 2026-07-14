@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "description": "herdr plugin: mirror a git worktree into an E2B sandbox",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
     "e2b": "^2.32.0",
     "@iarna/toml": "^2.2.5"
