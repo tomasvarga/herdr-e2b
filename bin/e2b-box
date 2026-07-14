@@ -110,7 +110,8 @@ on_close_prompt() {
       echo "  box left running (auto-pauses at the timeout; e2b-box kill to stop it)."
       ;;
     k|K|kill)
-      e2b sandbox kill "$sid" >/dev/null 2>&1 && echo "  killed box '$k'."
+      if sdk_kill "$sid" >/dev/null 2>&1; then echo "  killed box '$k'."
+      else echo "  couldn't reach E2B to kill '$k' — retry: e2b-box kill"; fi
       rm -f "$BOXES_DIR/$k.json" "$BOXES_DIR/$k.log"
       ;;
     *)
@@ -254,7 +255,7 @@ case "$cmd" in
     ;;
   kill)
     sid=$(field "$key" sandboxId)
-    if [ -n "$sid" ]; then ensure_e2b_path; ensure_e2b_key; command -v e2b >/dev/null 2>&1 && e2b sandbox kill "$sid" >/dev/null 2>&1 || true; fi
+    [ -n "$sid" ] && sdk_kill "$sid" >/dev/null 2>&1 || true
     rm -f "$BOXES_DIR/$key.json" "$BOXES_DIR/$key.log"
     echo "killed box for '$key'"
     ;;

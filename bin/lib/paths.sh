@@ -54,6 +54,16 @@ ensure_e2b_path() {
   return 1
 }
 
+# Kill a sandbox via the SDK (node kill.js), not the e2b CLI — so the CLI is only
+# needed for the interactive shell. Best-effort; needs a Node >= 22. Returns
+# non-zero only if a real kill error occurred (already-gone counts as success).
+sdk_kill() {
+  local sid="$1" node_bin
+  [ -n "$sid" ] || return 0
+  node_bin=$(e2b_node) || return 0   # no usable node: skip (nothing we can do)
+  "$node_bin" "$PLUGIN_DIR/src/kill.js" "$sid"
+}
+
 # Make sure the `e2b` CLI has a key: env first, else the plugin config
 # ([secrets].e2b_api_key). Lets the config dir be the single source of truth.
 ensure_e2b_key() {

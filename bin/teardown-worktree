@@ -17,12 +17,10 @@ wt_path=$(printf '%s' "$ev" | jq -r '[.. | .path? // empty | strings][0] // empt
 key=$(e2b_key "$(basename "$wt_path")")
 [ -z "$key" ] && exit 0
 
-sid=$(jq -r '.sandboxId // empty' "$BOXES_DIR/$key.json" 2>/dev/null)
 [ -f "$BOXES_DIR/$key.json" ] || exit 0   # no box for this worktree — nothing to do
-ensure_e2b_path
-if [ -n "$sid" ] && command -v e2b >/dev/null 2>&1; then
-  ensure_e2b_key
-  e2b sandbox kill "$sid" >/dev/null 2>&1 || true
+sid=$(jq -r '.sandboxId // empty' "$BOXES_DIR/$key.json" 2>/dev/null)
+if [ -n "$sid" ]; then
+  sdk_kill "$sid" >/dev/null 2>&1 || true   # SDK kill (bounded); no e2b CLI needed
   herdr notification show "E2B" --body "Box for $key torn down" >/dev/null 2>&1 || true
 fi
 rm -f "$BOXES_DIR/$key.json" "$BOXES_DIR/$key.log" 2>/dev/null || true

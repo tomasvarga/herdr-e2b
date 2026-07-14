@@ -48,9 +48,8 @@ auto_pause   = false
 # cold-boots on reconnect (loses running processes, but cheaper to keep paused).
 auto_resume  = true
 
-# Where the worktree is uploaded inside the box. Default (commented) derives
-# /home/user/<box-key> so `pwd` in the box reflects the project. Uncomment to
-# force a fixed path for every box.
+# Where the worktree is uploaded inside the box. Defaults to /home/user/project.
+# Uncomment to point it elsewhere.
 # project_path = "/home/user/project"
 
 # Port used to construct the preview URL (`e2b-box url`) — set it to whatever

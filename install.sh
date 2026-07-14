@@ -12,7 +12,7 @@ else
   echo "  ! npm not found — install Node.js (>=18), then re-run ./install.sh" >&2
 fi
 
-chmod +x bin/e2b-box bin/mirror-worktree bin/teardown-worktree 2>/dev/null || true
+chmod +x bin/e2b-box bin/teardown-worktree 2>/dev/null || true
 
 BIN="${HOME}/.local/bin"
 mkdir -p "$BIN"

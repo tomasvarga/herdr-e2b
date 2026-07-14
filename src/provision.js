@@ -25,8 +25,9 @@ if (!key || !worktreePath) {
 }
 
 const cfg = loadConfig()
-// Where the worktree lands inside the box. Defaults to /home/user/<box-key> so
-// `pwd` in the box reflects what you uploaded (not a generic "project" dir).
+// Where the worktree lands inside the box. Defaults to /home/user/project
+// (config [sandbox].project_path); falls back to /home/user/<key> only if that
+// is explicitly blanked.
 const projectPath = cfg.projectPath || `/home/user/${key}`
 // Metadata is stored on E2B's servers — keep it to non-sensitive identifiers.
 // No absolute local path here (it would leak your username / machine layout);
