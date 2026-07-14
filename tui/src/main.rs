@@ -64,14 +64,28 @@ fn goto_worktree(label: &str, wt: &str) -> String {
         .ok()
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "herdr".into());
-    // Match an open pane by its cwd, focus that workspace; else open the worktree.
+    // Find an open pane whose cwd is the worktree (or a subdir), then:
+    //  - different workspace  → workspace focus (+ tab focus)   [switch to it]
+    //  - same workspace, other tab → tab focus                   [switch tab]
+    //  - same workspace + tab → unzoom this pane                 [reveal it; the
+    //    dashboard is zoomed over the worktree you launched from]
+    //  - not open anywhere → open it fresh (--focus)
+    let sel = "'.result.panes[] | select(.cwd==$wt or (.cwd|startswith($wt+\"/\")) or .foreground_cwd==$wt or (.foreground_cwd|startswith($wt+\"/\"))) | \"\\(.workspace_id) \\(.tab_id)\"'";
     let script = format!(
-        "wt={wt}; ws=$({h} pane list 2>/dev/null | jq -r --arg wt \"$wt\" '.result.panes[] | select(.cwd==$wt or (.cwd|startswith($wt+\"/\")) or .foreground_cwd==$wt or (.foreground_cwd|startswith($wt+\"/\"))) | .workspace_id' | head -1); \
-if [ -n \"$ws\" ]; then {h} workspace focus \"$ws\" >/dev/null 2>&1 && echo focused; \
-elif [ -d \"$wt\" ]; then {h} workspace create --cwd \"$wt\" --focus >/dev/null 2>&1 && echo opened; \
-else echo missing; fi",
+        "wt={wt}; sel=$({h} pane list 2>/dev/null | jq -r --arg wt \"$wt\" {sel} | head -1); \
+ws=$(echo \"$sel\" | cut -d' ' -f1); tab=$(echo \"$sel\" | cut -d' ' -f2); \
+if [ -z \"$ws\" ]; then \
+  if [ -d \"$wt\" ]; then {h} workspace create --cwd \"$wt\" --focus >/dev/null 2>&1 && echo opened || echo missing; else echo missing; fi; \
+elif [ \"$ws\" != \"$HERDR_WORKSPACE_ID\" ]; then \
+  {h} workspace focus \"$ws\" >/dev/null 2>&1; {h} tab focus \"$tab\" >/dev/null 2>&1; echo switched; \
+elif [ \"$tab\" != \"$HERDR_TAB_ID\" ]; then \
+  {h} tab focus \"$tab\" >/dev/null 2>&1; echo switched; \
+else \
+  {h} pane zoom --pane \"$HERDR_PANE_ID\" --off >/dev/null 2>&1; echo revealed; \
+fi",
         wt = sh(wt),
         h = sh(&herdr),
+        sel = sel,
     );
     let word = Command::new("bash")
         .arg("-lc")
@@ -83,9 +97,11 @@ else echo missing; fi",
         .map(|s| s.trim().to_string())
         .unwrap_or_default();
     match word.as_str() {
-        "focused" => format!("→ {label}: focused its open worktree"),
-        "opened" => format!("→ {label}: opened its worktree"),
-        _ => format!("{label}: worktree not found locally"),
+        "switched" => format!("→ switched to {label}'s worktree"),
+        "opened" => format!("→ opened {label}'s worktree"),
+        "revealed" => format!("→ {label} is this worktree — unzoomed the board"),
+        "missing" => format!("{label}: worktree not open & not found locally"),
+        _ => format!("{label}: couldn't switch"),
     }
 }
 
