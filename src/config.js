@@ -14,7 +14,8 @@ const DEFAULTS = {
   template: "base",
   templateRules: [], // [{pattern, template}] per-branch overrides
   sandboxTimeoutMs: 60 * 60 * 1000, // 1h
-  autoPause: false, // pause (not kill) the box on timeout; resume on reconnect
+  autoPause: false, // onTimeout: pause (not kill) the box; state preserved
+  autoResume: true, // only when autoPause: wake the box on connect (vs cold-boot)
   projectPath: "/home/user/project", // E2B's conventional working dir
   serverPort: 3000,
   batchSize: 40,
@@ -50,6 +51,7 @@ export function loadConfig() {
     template: sandbox.template ?? DEFAULTS.template,
     sandboxTimeoutMs: Number(sandbox.timeout_ms ?? DEFAULTS.sandboxTimeoutMs),
     autoPause: sandbox.auto_pause === true,
+    autoResume: sandbox.auto_resume ?? DEFAULTS.autoResume,
     projectPath: sandbox.project_path ?? DEFAULTS.projectPath,
     serverPort: Number(sandbox.server_port ?? DEFAULTS.serverPort),
     batchSize: Number(upload.batch_size ?? DEFAULTS.batchSize),
@@ -61,6 +63,17 @@ export function loadConfig() {
     // Env wins over config so you can still export it if you prefer.
     apiKey: process.env.E2B_API_KEY?.trim() || secrets.e2b_api_key || null,
   }
+}
+
+/**
+ * Map config to the SDK's `lifecycle` create option.
+ * - autoPause off → { onTimeout: "kill" } (SDK default; box dies at timeout)
+ * - autoPause on  → { onTimeout: "pause", autoResume } (state preserved; connect
+ *   auto-resumes when autoResume is true, else the box must be resumed explicitly)
+ */
+export function resolveLifecycle(cfg) {
+  if (!cfg.autoPause) return { onTimeout: "kill" }
+  return { onTimeout: "pause", autoResume: cfg.autoResume !== false }
 }
 
 /** Resolve the E2B template for a branch: first matching rule, else default. */

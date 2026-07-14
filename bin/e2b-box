@@ -67,8 +67,11 @@ key_from_cwd() {
 rec()   { cat "$BOXES_DIR/$1.json" 2>/dev/null; }
 field() { rec "$1" | jq -r --arg f "$2" '.[$f] // empty' 2>/dev/null; }
 
+# Launch the provision worker in the background. op = ensure | sync.
+# Marks the record "provisioning" but PRESERVES a known sandboxId so the worker
+# can reconnect to (and resume) an existing box instead of always creating fresh.
 provision_from_cwd() {
-  local k="$1" b p payload node_bin
+  local k="$1" op="${2:-ensure}" b p sid payload node_bin
   b=""; at_repo_root && b=$(git_branch); [ "$b" = "HEAD" ] && b=""
   p=$(box_root)
   node_bin=$(e2b_node) || node_bin=""
@@ -78,11 +81,13 @@ provision_from_cwd() {
       > "$BOXES_DIR/$k.json"
     return 1
   fi
-  jq -cn --arg k "$k" --arg b "$b" --arg p "$p" \
-    '{key:$k, status:"provisioning", step:"queued", branch:$b, worktreePath:$p, workspaceId:""}' \
+  sid=$(field "$k" sandboxId)
+  jq -cn --arg k "$k" --arg b "$b" --arg p "$p" --arg sid "$sid" \
+    '{key:$k, status:"provisioning", step:"queued", branch:$b, worktreePath:$p, workspaceId:""}
+       + (if $sid != "" then {sandboxId:$sid} else {} end)' \
     > "$BOXES_DIR/$k.json"
-  payload=$(jq -cn --arg k "$k" --arg b "$b" --arg p "$p" \
-    '{key:$k, branch:$b, worktreePath:$p, workspaceId:"", reuse:false}')
+  payload=$(jq -cn --arg k "$k" --arg b "$b" --arg p "$p" --arg op "$op" \
+    '{key:$k, branch:$b, worktreePath:$p, workspaceId:"", op:$op}')
   nohup "$node_bin" "$PLUGIN_DIR/src/provision.js" "$payload" >>"$BOXES_DIR/$k.log" 2>&1 &
   disown 2>/dev/null || true
 }
@@ -128,10 +133,8 @@ connect_shell() {
     echo "  ! e2b CLI not found — 'npm i -g @e2b/cli'. Then: e2b sandbox connect $sid" >&2
     exec bash -i
   fi
-  # If the box is paused (auto_pause), resume it first so connect attaches live.
-  if ! e2b sandbox list --state running --format json 2>/dev/null | grep -q "$sid"; then
-    echo "  resuming paused box…"; e2b sandbox resume "$sid" >/dev/null 2>&1 || true
-  fi
+  # The box was just ensured live (reconnected/resumed) by provision.js, so
+  # `e2b sandbox connect` can attach directly — no separate resume needed.
   # `e2b sandbox connect` needs a raw TTY; without one it crashes and would take
   # the pane with it. Guard so we show instructions instead of dying silently.
   if [ -t 0 ] && [ -t 1 ]; then
@@ -148,19 +151,49 @@ connect_shell() {
   exec bash -i
 }
 
-# True if the sandbox id is still running on E2B. Catches the "record says ready
-# but the box idle-timed-out / was killed" case. On any lookup failure, assume
-# alive so a transient error doesn't trigger a needless reprovision.
-box_alive() {
-  local sid="$1" out
-  [ -n "$sid" ] || return 1
-  ensure_e2b_path
-  command -v e2b >/dev/null 2>&1 || return 0
-  out=$(e2b sandbox list --state running --format json 2>/dev/null) || return 0
-  printf '%s' "$out" | grep -q "$sid" && return 0
-  # a paused (auto_pause) box is still alive — resumable on reconnect
-  out=$(e2b sandbox list --state paused --format json 2>/dev/null) || return 0
-  printf '%s' "$out" | grep -q "$sid"
+# Boot (ensure) the box and attach a shell. provision.js is the single source of
+# truth for liveness: it reconnects to (and resumes) the tracked box, or creates
+# a fresh one if it's gone — so there's no separate liveness poll here.
+#   create_missing=1 (open) provisions when no record exists;
+#   create_missing=0 (shell) errors instead, so `shell` only attaches to a box
+#                    you already have.
+boot_and_connect() {
+  local create_missing="$1" st raw step laststep frames f i max missing
+  st=$(field "$key" status)
+  if [ "$st" != "provisioning" ]; then
+    if [ -z "$st" ] && [ "$create_missing" != "1" ]; then
+      echo "no box tracked for '$key' — run 'e2b-box open' to boot one." >&2
+      exit 1
+    fi
+    provision_from_cwd "$key" ensure
+  fi
+  # Spin until ready, bounded so a hung provision can't loop forever.
+  frames='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'; i=0; max=4000   # ~20 min at 0.3s/iter
+  missing=0; laststep="starting"
+  while :; do
+    raw=$(rec "$key")
+    st=$(printf '%s' "$raw" | jq -r '.status // empty' 2>/dev/null)
+    step=$(printf '%s' "$raw" | jq -r '.step // empty' 2>/dev/null)
+    [ -n "$step" ] && laststep="$step"
+    case "$st" in
+      ready) break ;;
+      failed) printf '\r\033[K'; echo "✗ E2B box failed: ${step:-$laststep}"; echo "  see: e2b-box logs"; exit 1 ;;
+      "")  # transient (mid-write / just before first write) — tolerate briefly
+        missing=$((missing + 1))
+        if [ "$missing" -ge 20 ]; then
+          printf '\r\033[K'; echo "box record for '$key' went away — see: e2b-box logs"; exit 1
+        fi ;;
+      *) missing=0 ;;
+    esac
+    if [ "$i" -ge "$max" ]; then
+      printf '\r\033[K'; echo "timed out waiting for box '$key' (last: $laststep). see: e2b-box logs"; exit 1
+    fi
+    f=${frames:$((i % ${#frames})):1}; i=$((i + 1))
+    printf '\r\033[K%s  booting E2B box for %s … %s' "$f" "$key" "$laststep"
+    sleep 0.3
+  done
+  printf '\r\033[K'
+  connect_shell "$key"
 }
 
 cmd="${1:-open}"
@@ -189,7 +222,7 @@ case "$cmd" in
     b=""; at_repo_root && b=$(git_branch); [ "$b" = "HEAD" ] && b=""
     p=$(box_root)
     payload=$(jq -cn --arg k "$key" --arg b "$b" --arg p "$p" \
-      '{key:$k, branch:$b, worktreePath:$p, workspaceId:"", reuse:true}')
+      '{key:$k, branch:$b, worktreePath:$p, workspaceId:"", op:"sync"}')
     echo "re-uploading '$key' worktree into its box…"
     "$node_bin" "$PLUGIN_DIR/src/provision.js" "$payload"
     ;;
@@ -233,65 +266,19 @@ case "$cmd" in
       provisioning) echo "box for '$key' already provisioning ($(field "$key" step)) — e2b-box logs" ;;
       *)
         echo "provisioning E2B box for '$key' in the background…"
-        provision_from_cwd "$key"
+        provision_from_cwd "$key" ensure
         echo "watch: e2b-box logs   ·   attach when ready: e2b-box open"
         ;;
     esac
     ;;
   shell)
-    # Connect now; do not wait. Fails if the box isn't ready or has died.
-    st=$(field "$key" status); sid=$(field "$key" sandboxId)
-    if [ "$st" != "ready" ] || [ -z "$sid" ]; then
-      echo "box for '$key' is not ready (status: ${st:-none}). Run 'e2b-box open' to boot it." >&2
-      exit 1
-    fi
-    if ! box_alive "$sid"; then
-      echo "box '$key' ($sid) is no longer running — run 'e2b-box open' to reprovision." >&2
-      exit 1
-    fi
-    connect_shell "$key"
+    # Attach to a box you already have (resume/heal it if needed); don't create
+    # one from scratch.
+    boot_and_connect 0
     ;;
   open)
-    st=$(field "$key" status)
-    # A "ready" record goes stale when the box idle-times-out (default 1h) or is
-    # killed — connecting to a dead sandbox just dies. Verify + reprovision.
-    if [ "$st" = "ready" ] && ! box_alive "$(field "$key" sandboxId)"; then
-      echo "box '$key' is no longer running (idle timeout?) — reprovisioning…"
-      ensure_e2b_key; command -v e2b >/dev/null 2>&1 && e2b sandbox kill "$(field "$key" sandboxId)" >/dev/null 2>&1 || true
-      rm -f "$BOXES_DIR/$key.json" "$BOXES_DIR/$key.log"
-      st=""
-    fi
-    if [ -z "$st" ]; then
-      echo "No live E2B box for '$key' — provisioning one now…"
-      provision_from_cwd "$key"
-    fi
-    # Spin until ready, bounded so a hung provision can't loop forever.
-    frames='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'; i=0; max=4000   # ~20 min at 0.3s/iter
-    missing=0; laststep="starting"
-    while :; do
-      raw=$(rec "$key")
-      st=$(printf '%s' "$raw" | jq -r '.status // empty' 2>/dev/null)
-      step=$(printf '%s' "$raw" | jq -r '.step // empty' 2>/dev/null)
-      [ -n "$step" ] && laststep="$step"
-      case "$st" in
-        ready) break ;;
-        failed) printf '\r\033[K'; echo "✗ E2B box failed: ${step:-$laststep}"; echo "  see: e2b-box logs"; exit 1 ;;
-        "")  # transient (mid-write / just before first write) — tolerate briefly
-          missing=$((missing + 1))
-          if [ "$missing" -ge 20 ]; then
-            printf '\r\033[K'; echo "box record for '$key' went away — see: e2b-box logs"; exit 1
-          fi ;;
-        *) missing=0 ;;
-      esac
-      if [ "$i" -ge "$max" ]; then
-        printf '\r\033[K'; echo "timed out waiting for box '$key' (last: $laststep). see: e2b-box logs"; exit 1
-      fi
-      f=${frames:$((i % ${#frames})):1}; i=$((i + 1))
-      printf '\r\033[K%s  booting E2B box for %s … %s' "$f" "$key" "$laststep"
-      sleep 0.3
-    done
-    printf '\r\033[K'
-    connect_shell "$key"
+    # Ensure the box is live (reconnect/resume, or create if missing) then attach.
+    boot_and_connect 1
     ;;
   *)
     echo "usage: e2b-box [open|up|shell|status|list|url|logs|sync|pull|kill]" >&2
