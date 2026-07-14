@@ -50,6 +50,45 @@ fn sh(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
+/// Enter: go to a sandbox's local worktree. Focus an already-open herdr
+/// workspace for that path (no duplicate), else open it fresh. Only meaningful
+/// inside herdr. Returns a status message for the footer.
+fn goto_worktree(label: &str, wt: &str) -> String {
+    if wt.is_empty() {
+        return format!("{label}: no worktree path");
+    }
+    if std::env::var("HERDR_SOCKET_PATH").map_or(true, |s| s.is_empty()) {
+        return "↵ needs herdr (press o to open the sandbox instead)".into();
+    }
+    let herdr = std::env::var("HERDR_BIN_PATH")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "herdr".into());
+    // Match an open pane by its cwd, focus that workspace; else open the worktree.
+    let script = format!(
+        "wt={wt}; ws=$({h} pane list 2>/dev/null | jq -r --arg wt \"$wt\" '.result.panes[] | select(.cwd==$wt or .foreground_cwd==$wt) | .workspace_id' | head -1); \
+if [ -n \"$ws\" ]; then {h} workspace focus \"$ws\" >/dev/null 2>&1 && echo focused; \
+elif [ -d \"$wt\" ]; then {h} workspace create --cwd \"$wt\" --focus >/dev/null 2>&1 && echo opened; \
+else echo missing; fi",
+        wt = sh(wt),
+        h = sh(&herdr),
+    );
+    let word = Command::new("bash")
+        .arg("-lc")
+        .arg(&script)
+        .env_remove("HERDR_PLUGIN_CONTEXT_JSON")
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default();
+    match word.as_str() {
+        "focused" => format!("→ {label}: focused its open worktree"),
+        "opened" => format!("→ {label}: opened its worktree"),
+        _ => format!("{label}: worktree not found locally"),
+    }
+}
+
 // Cycle order for the `T` key. "terminal" (== auto) is first so it's the default.
 const THEMES: [&str; 6] = ["terminal", "solarized-light", "tokyo-night", "dracula", "nord", "gruvbox"];
 
@@ -352,7 +391,7 @@ fn draw(f: &mut Frame, app: &mut App) {
         let wt = b.map(|b| b.worktree_path.as_str()).unwrap_or("");
         Line::from(format!("  {}", v.confirm(label, wt))).style(t.confirm)
     } else {
-        Line::from("  ↑/↓ move · o open · s sync · p pull · x kill · r refresh · T theme · q quit")
+        Line::from("  ↑/↓ move · ↵ worktree · o open · s sync · p pull · x kill · r refresh · T theme · q quit")
             .style(Style::default().fg(t.dim))
     };
     let msg = Line::from(format!("  {}", app.msg)).style(Style::default().fg(t.paused));
@@ -523,6 +562,12 @@ fn main() -> std::io::Result<()> {
                     KeyCode::Char('o') => {
                         if let Some(b) = app.sel() {
                             app.run = Some((b.label.clone(), b.key.clone(), "open", b.worktree_path.clone()));
+                        }
+                    }
+                    KeyCode::Enter => {
+                        if let Some(b) = app.sel() {
+                            let (label, wt) = (b.label.clone(), b.worktree_path.clone());
+                            app.msg = goto_worktree(&label, &wt);
                         }
                     }
                     _ => {}

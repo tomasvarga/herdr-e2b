@@ -104,9 +104,13 @@ A live board of every tracked sandbox — status, sandbox id, files — with per
 actions and theming (shown above). Run `e2b-dash`, open the **dashboard** pane, or
 invoke the `dashboard` action.
 
-- **Keys:** `↑/↓` move · `o` open · `s` sync · `p` pull · `x` kill · `r` refresh ·
-  `T` theme · `q` quit. `sync`/`pull`/`kill` **confirm first** and show the exact
-  target worktree; each action runs against *that sandbox's own* worktree.
+- **Keys:** `↑/↓` move · `↵` worktree · `o` open · `s` sync · `p` pull · `x` kill ·
+  `r` refresh · `T` theme · `q` quit. `sync`/`pull`/`kill` **confirm first** and
+  show the exact target worktree; each action runs against *that sandbox's own*
+  worktree.
+- **`Enter`** jumps to the sandbox's **local worktree** — focuses its herdr
+  workspace if it's already open (no duplicate), else opens it. (`o` attaches the
+  cloud shell; `Enter` takes you to where you edit.)
 - **`open`** hands the pane to the sandbox shell, and on exit the dashboard offers
   pull / kill / leave.
 - **Themes:** defaults to your terminal's palette; `T` cycles
