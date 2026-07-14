@@ -60,7 +60,7 @@ server_port  = 3000
 [dashboard]
 # Default theme for the `e2b-dash` TUI. Omit (or "terminal"/"auto") to inherit
 # your terminal's own palette. Cycle live with `T` (that choice is remembered and
-# overrides this). Presets: terminal · solarized-light · tokyonight · dracula ·
+# overrides this). Presets: terminal · solarized-light · tokyo-night · dracula ·
 # nord · gruvbox.
 # theme = "terminal"
 

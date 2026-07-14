@@ -1,4 +1,4 @@
-# VHS tape — herdr-e2b dashboard (Ratatui TUI), rendered in tokyonight.
+# VHS tape — herdr-e2b dashboard (Ratatui TUI), rendered in tokyo-night.
 # Record: vhs assets/dashboard.tape   (needs the built tui binary + sample data)
 Output assets/dashboard.gif
 Require bash
@@ -11,11 +11,11 @@ Set Padding 18
 Set TypingSpeed 55ms
 
 # hidden: seed sample sandboxes, isolate theme state to a scratch dir, force the
-# tokyonight theme, and launch — so the gif opens straight on the board.
+# tokyo-night theme, and launch — so the gif opens straight on the board.
 Hide
 Type 'cd /Users/tomasvarga/Documents/GitHub/herdr-e2b' Enter
 Type 'bash tui/demo/seed.sh >/dev/null 2>&1' Enter
-Type 'export HERDR_E2B_STATE_DIR=/tmp/e2b-dash-demo E2B_DASH_THEME=tokyonight; rm -rf "$HERDR_E2B_STATE_DIR"; mkdir -p "$HERDR_E2B_STATE_DIR"' Enter
+Type 'export HERDR_E2B_STATE_DIR=/tmp/e2b-dash-demo E2B_DASH_THEME=tokyo-night; rm -rf "$HERDR_E2B_STATE_DIR"; mkdir -p "$HERDR_E2B_STATE_DIR"' Enter
 Type 'clear' Enter
 Type 'tui/target/release/e2b-dash tui/demo/sample-boxes' Enter
 Sleep 2s

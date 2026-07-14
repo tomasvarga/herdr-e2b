@@ -107,7 +107,7 @@ actions and theming. Run `e2b-dash`, open the **dashboard** pane, or invoke the
 - **`open`** hands the pane to the sandbox shell, and on exit the dashboard offers
   pull / kill / leave.
 - **Themes:** defaults to your terminal's palette; `T` cycles
-  `terminal · solarized-light · tokyonight · dracula · nord · gruvbox` (your
+  `terminal · solarized-light · tokyo-night · dracula · nord · gruvbox` (your
   choice is remembered). Set a default with `[dashboard].theme` in the config.
 - **No dev tools needed:** `install.sh` uses a **prebuilt binary** (macOS
   universal; Linux x64/arm64, glibc) when one matches your platform, and only

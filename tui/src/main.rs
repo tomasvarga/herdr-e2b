@@ -6,7 +6,7 @@
 // Theming: defaults to the TERMINAL's own palette (so it inherits whatever
 // theme your terminal / herdr uses). Cycle live with `T`, or pick a start theme
 // with E2B_DASH_THEME (or "auto" = terminal):
-//   terminal (default) | solarized-light | tokyonight | dracula | nord | gruvbox
+//   terminal (default) | solarized-light | tokyo-night | dracula | nord | gruvbox
 //
 //   cargo run --release -- [boxes_dir]
 use std::{
@@ -51,7 +51,7 @@ fn sh(s: &str) -> String {
 }
 
 // Cycle order for the `T` key. "terminal" (== auto) is first so it's the default.
-const THEMES: [&str; 6] = ["terminal", "solarized-light", "tokyonight", "dracula", "nord", "gruvbox"];
+const THEMES: [&str; 6] = ["terminal", "solarized-light", "tokyo-night", "dracula", "nord", "gruvbox"];
 
 fn theme_from(name: &str) -> Theme {
     match name {
@@ -67,7 +67,7 @@ fn theme_from(name: &str) -> Theme {
             sel: Style::default().bg(rgb(0xeee8d5)).fg(rgb(0x002b36)).add_modifier(Modifier::BOLD),
             confirm: Style::default().bg(rgb(0xb58900)).fg(rgb(0xfdf6e3)).add_modifier(Modifier::BOLD),
         },
-        "tokyonight" => Theme {
+        "tokyo-night" => Theme {
             accent: rgb(0x7aa2f7),
             dim: rgb(0x565f89),
             border: rgb(0x3b4261),
