@@ -64,16 +64,17 @@ fn goto_worktree(label: &str, wt: &str) -> String {
         .ok()
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "herdr".into());
-    // Find an open pane whose cwd is the worktree (or a subdir), then:
-    //  - different workspace  → workspace focus (+ tab focus)   [switch to it]
-    //  - same workspace, other tab → tab focus                   [switch tab]
-    //  - same workspace + tab → unzoom this pane                 [reveal it; the
-    //    dashboard is zoomed over the worktree you launched from]
+    // Find an open pane whose cwd is the worktree (or a subdir), EXCLUDING the
+    // dashboard's own pane, then land you on it:
+    //  - different workspace → workspace focus (+ tab focus)
+    //  - same workspace, other tab → tab focus
+    //  - same workspace + tab → zoom that pane to front (auto-unzooms the board
+    //    and focuses the worktree pane)
     //  - not open anywhere → open it fresh (--focus)
-    let sel = "'.result.panes[] | select(.cwd==$wt or (.cwd|startswith($wt+\"/\")) or .foreground_cwd==$wt or (.foreground_cwd|startswith($wt+\"/\"))) | \"\\(.workspace_id) \\(.tab_id)\"'";
+    let sel = "'.result.panes[] | select((.pane_id != $me) and (.cwd==$wt or (.cwd|startswith($wt+\"/\")) or .foreground_cwd==$wt or (.foreground_cwd|startswith($wt+\"/\")))) | \"\\(.workspace_id) \\(.tab_id) \\(.pane_id)\"'";
     let script = format!(
-        "wt={wt}; sel=$({h} pane list 2>/dev/null | jq -r --arg wt \"$wt\" {sel} | head -1); \
-ws=$(echo \"$sel\" | cut -d' ' -f1); tab=$(echo \"$sel\" | cut -d' ' -f2); \
+        "wt={wt}; sel=$({h} pane list 2>/dev/null | jq -r --arg wt \"$wt\" --arg me \"$HERDR_PANE_ID\" {sel} | head -1); \
+ws=$(echo \"$sel\" | cut -d' ' -f1); tab=$(echo \"$sel\" | cut -d' ' -f2); pid=$(echo \"$sel\" | cut -d' ' -f3); \
 if [ -z \"$ws\" ]; then \
   if [ -d \"$wt\" ]; then {h} workspace create --cwd \"$wt\" --focus >/dev/null 2>&1 && echo opened || echo missing; else echo missing; fi; \
 elif [ \"$ws\" != \"$HERDR_WORKSPACE_ID\" ]; then \
@@ -81,7 +82,7 @@ elif [ \"$ws\" != \"$HERDR_WORKSPACE_ID\" ]; then \
 elif [ \"$tab\" != \"$HERDR_TAB_ID\" ]; then \
   {h} tab focus \"$tab\" >/dev/null 2>&1; echo switched; \
 else \
-  {h} pane zoom --pane \"$HERDR_PANE_ID\" --off >/dev/null 2>&1; echo revealed; \
+  {h} pane zoom --pane \"$pid\" --on >/dev/null 2>&1; echo switched; \
 fi",
         wt = sh(wt),
         h = sh(&herdr),
@@ -99,7 +100,6 @@ fi",
     match word.as_str() {
         "switched" => format!("→ switched to {label}'s worktree"),
         "opened" => format!("→ opened {label}'s worktree"),
-        "revealed" => format!("→ {label} is this worktree — unzoomed the board"),
         "missing" => format!("{label}: worktree not open & not found locally"),
         _ => format!("{label}: couldn't switch"),
     }
