@@ -61,6 +61,6 @@ echo "herdr-e2b: tip — boxes default to the 'base' template (minimal). For rea
 echo "  work, build a bigger CUSTOM template (more disk/CPU + your toolchain) and"
 echo "  set [sandbox].template in $CFG. Build with 'e2b template build'"
 echo "  (https://e2b.dev/docs/sandbox-template) — or ask your coding agent to set"
-echo "  one up. Public agent templates (claude-code, codex, opencode) also work."
+echo "  one up. Public agent templates (claude, codex, opencode, amp, grok) also work."
 
 echo "herdr-e2b: done. Bind prefix+shift+e to plugin.herdr-e2b.open in your herdr config."

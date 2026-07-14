@@ -14,18 +14,19 @@
 # the flow, but tight on disk/tools for real work.
 # RECOMMENDED: build a bigger CUSTOM template (more disk + CPU, your toolchain
 # baked in) and set it here — see the README and install.sh. Public agent
-# templates (claude-code, codex, opencode, … https://e2b.dev/docs/agents) also
-# work but can run out of space.
+# templates (claude, codex, opencode, … https://e2b.dev/docs/agents) also
+# work but can run out of space. (Claude Code's template is named `claude`;
+# Devin has no prebuilt template — install it into a base sandbox yourself.)
 template     = "base"
 
 # Per-branch template overrides — first matching rule (JS regex on the branch)
 # wins over `template`. Route a branch to the right agent by naming it, e.g.
 # `e2b/cc/*` gets Claude Code, `e2b/cx/*` gets Codex, everything else opencode.
-# Use the exact template name on your account (`e2b template list`) — E2B's
-# agent examples are named after the agent (claude-code, codex, opencode, …).
+# Use the exact template name (`e2b template list`, or E2B's public names:
+# claude / codex / opencode / amp / grok).
 # [[sandbox.template_rules]]
 # pattern  = "^e2b/cc/"          # Claude Code branches
-# template = "claude-code"
+# template = "claude"
 # [[sandbox.template_rules]]
 # pattern  = "^e2b/cx/"          # Codex branches
 # template = "codex"

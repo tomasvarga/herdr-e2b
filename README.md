@@ -133,12 +133,16 @@ can be tight on disk):
 
 | Agent | Template | E2B docs |
 | --- | --- | --- |
-| Claude Code | `claude-code` | [docs](https://e2b.dev/docs/agents/claude-code) |
+| Claude Code | `claude` | [docs](https://e2b.dev/docs/agents/claude-code) |
 | Codex | `codex` | [docs](https://e2b.dev/docs/agents/codex) |
 | OpenCode | `opencode` | [docs](https://e2b.dev/docs/agents/opencode) |
 | Amp | `amp` | [docs](https://e2b.dev/docs/agents/amp) |
 | Grok Build | `grok` | [docs](https://e2b.dev/docs/agents/grok) |
-| Devin | `devin` | [docs](https://e2b.dev/docs/agents/devin) |
+
+Note the Claude Code template is named **`claude`** (not `claude-code`). Some
+agents (e.g. **Devin**) have **no prebuilt template** — you install them into a
+`base` sandbox yourself (or bake your own template), so there's nothing to name
+here.
 
 Route per branch with rules:
 
