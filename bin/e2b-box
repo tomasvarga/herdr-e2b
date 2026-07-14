@@ -115,6 +115,18 @@ connect_shell() {
   exec bash -i
 }
 
+# True if the sandbox id is still running on E2B. Catches the "record says ready
+# but the box idle-timed-out / was killed" case. On any lookup failure, assume
+# alive so a transient error doesn't trigger a needless reprovision.
+box_alive() {
+  local sid="$1" out
+  [ -n "$sid" ] || return 1
+  ensure_e2b_path
+  command -v e2b >/dev/null 2>&1 || return 0
+  out=$(e2b sandbox list --state running --format json 2>/dev/null) || return 0
+  printf '%s' "$out" | grep -q "$sid"
+}
+
 cmd="${1:-open}"
 [ $# -gt 0 ] && shift
 key="${KEY:-$(key_from_cwd)}"
@@ -191,18 +203,30 @@ case "$cmd" in
     esac
     ;;
   shell)
-    # Connect now; do not wait. Fails if the box isn't ready.
+    # Connect now; do not wait. Fails if the box isn't ready or has died.
     st=$(field "$key" status); sid=$(field "$key" sandboxId)
     if [ "$st" != "ready" ] || [ -z "$sid" ]; then
       echo "box for '$key' is not ready (status: ${st:-none}). Run 'e2b-box open' to boot it." >&2
+      exit 1
+    fi
+    if ! box_alive "$sid"; then
+      echo "box '$key' ($sid) is no longer running — run 'e2b-box open' to reprovision." >&2
       exit 1
     fi
     connect_shell "$key"
     ;;
   open)
     st=$(field "$key" status)
+    # A "ready" record goes stale when the box idle-times-out (default 1h) or is
+    # killed — connecting to a dead sandbox just dies. Verify + reprovision.
+    if [ "$st" = "ready" ] && ! box_alive "$(field "$key" sandboxId)"; then
+      echo "box '$key' is no longer running (idle timeout?) — reprovisioning…"
+      ensure_e2b_key; command -v e2b >/dev/null 2>&1 && e2b sandbox kill "$(field "$key" sandboxId)" >/dev/null 2>&1 || true
+      rm -f "$BOXES_DIR/$key.json" "$BOXES_DIR/$key.log"
+      st=""
+    fi
     if [ -z "$st" ]; then
-      echo "No E2B box for '$key' yet — provisioning one now…"
+      echo "No live E2B box for '$key' — provisioning one now…"
       provision_from_cwd "$key"
     fi
     # Spin until ready, bounded so a hung provision can't loop forever.

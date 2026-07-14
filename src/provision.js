@@ -56,12 +56,19 @@ async function main() {
   const apiKey = requireApiKey(cfg)
   notify("E2B", `${reuse ? "Syncing" : "Booting"} box for ${branch || key}…`)
 
-  let sandbox
+  let sandbox = null
   const prev = await readRecord(key)
   if (reuse && prev?.sandboxId) {
     await step("reconnecting to box")
-    sandbox = await Sandbox.connect(prev.sandboxId, { apiKey, timeoutMs: cfg.sandboxTimeoutMs })
-  } else {
+    try {
+      sandbox = await Sandbox.connect(prev.sandboxId, { apiKey, timeoutMs: cfg.sandboxTimeoutMs })
+    } catch (e) {
+      // Box died (idle timeout / killed) — fall through to a fresh one.
+      await log(`reconnect to ${prev.sandboxId} failed (${(e && e.message) || e}); creating a fresh box`)
+      sandbox = null
+    }
+  }
+  if (!sandbox) {
     const template = resolveTemplate(branch, cfg)
     await step(`creating sandbox (${template})`)
     const opts = { apiKey, timeoutMs: cfg.sandboxTimeoutMs, metadata }
