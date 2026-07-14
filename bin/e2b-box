@@ -58,9 +58,15 @@ at_repo_root() {
 }
 
 # Box identity = the folder (project) you're in — NOT the branch. A repo on
-# "main" shouldn't key as "main" (useless + collides). The folder name is what
-# you actually think of the box as.
+# "main" shouldn't key as "main" (useless + collides). Keyed by folder PATH
+# (folder-name + a hash) so two same-named folders don't share a box.
 key_from_cwd() {
+  box_key "$(box_root)"
+}
+
+# Human-facing name for the box (prompt, notifications) — just the folder name,
+# without the disambiguating hash in the key.
+label_from_cwd() {
   e2b_key "$(basename "$(box_root)")"
 }
 
@@ -71,23 +77,24 @@ field() { rec "$1" | jq -r --arg f "$2" '.[$f] // empty' 2>/dev/null; }
 # Marks the record "provisioning" but PRESERVES a known sandboxId so the worker
 # can reconnect to (and resume) an existing box instead of always creating fresh.
 provision_from_cwd() {
-  local k="$1" op="${2:-ensure}" b p sid payload node_bin
+  local k="$1" op="${2:-ensure}" b p l sid payload node_bin
   b=""; at_repo_root && b=$(git_branch); [ "$b" = "HEAD" ] && b=""
   p=$(box_root)
+  l=$(label_from_cwd)
   node_bin=$(e2b_node) || node_bin=""
   if [ -z "$node_bin" ]; then
-    jq -cn --arg k "$k" --arg b "$b" --arg p "$p" \
-      '{key:$k, status:"failed", step:"needs Node >= 22 (set HERDR_E2B_NODE)", branch:$b, worktreePath:$p, workspaceId:""}' \
+    jq -cn --arg k "$k" --arg b "$b" --arg p "$p" --arg l "$l" \
+      '{key:$k, label:$l, status:"failed", step:"needs Node >= 22 (set HERDR_E2B_NODE)", branch:$b, worktreePath:$p, workspaceId:""}' \
       > "$BOXES_DIR/$k.json"
     return 1
   fi
   sid=$(field "$k" sandboxId)
-  jq -cn --arg k "$k" --arg b "$b" --arg p "$p" --arg sid "$sid" \
-    '{key:$k, status:"provisioning", step:"queued", branch:$b, worktreePath:$p, workspaceId:""}
+  jq -cn --arg k "$k" --arg b "$b" --arg p "$p" --arg l "$l" --arg sid "$sid" \
+    '{key:$k, label:$l, status:"provisioning", step:"queued", branch:$b, worktreePath:$p, workspaceId:""}
        + (if $sid != "" then {sandboxId:$sid} else {} end)' \
     > "$BOXES_DIR/$k.json"
-  payload=$(jq -cn --arg k "$k" --arg b "$b" --arg p "$p" --arg op "$op" \
-    '{key:$k, branch:$b, worktreePath:$p, workspaceId:"", op:$op}')
+  payload=$(jq -cn --arg k "$k" --arg b "$b" --arg p "$p" --arg l "$l" --arg op "$op" \
+    '{key:$k, label:$l, branch:$b, worktreePath:$p, workspaceId:"", op:$op}')
   nohup "$node_bin" "$PLUGIN_DIR/src/provision.js" "$payload" >>"$BOXES_DIR/$k.log" 2>&1 &
   disown 2>/dev/null || true
 }
@@ -95,23 +102,24 @@ provision_from_cwd() {
 # After you exit the box shell, decide what to do with the box: pull your work
 # back down, kill it, or leave it (auto_pause will pause it at the timeout).
 on_close_prompt() {
-  local k="$1" sid="$2" ans dest node_bin
+  local k="$1" sid="$2" ans dest node_bin lbl
+  lbl=$(field "$k" label); : "${lbl:=$k}"
   [ -t 0 ] || return 0   # non-interactive: leave the box as-is
   echo
-  printf "left box '%s' — [p]ull changes down · [k]ill it · [L]eave running: " "$k"
+  printf "left box '%s' — [p]ull changes down · [k]ill it · [L]eave running: " "$lbl"
   read -r ans
   case "${ans:-L}" in
     p|P|pull)
       node_bin=$(e2b_node) || { echo "  needs Node >= 22 to pull"; return 0; }
       dest=$(box_root)
-      echo "  pulling '$k' → $dest …"
+      echo "  pulling '$lbl' → $dest …"
       "$node_bin" "$PLUGIN_DIR/src/download.js" "$(jq -cn --arg k "$k" --arg d "$dest" '{key:$k,destRoot:$d}')"
       git -C "$dest" rev-parse --git-dir >/dev/null 2>&1 && echo "  review: git -C '$dest' diff"
       echo "  box left running (auto-pauses at the timeout; e2b-box kill to stop it)."
       ;;
     k|K|kill)
-      if sdk_kill "$sid" >/dev/null 2>&1; then echo "  killed box '$k'."
-      else echo "  couldn't reach E2B to kill '$k' — retry: e2b-box kill"; fi
+      if sdk_kill "$sid" >/dev/null 2>&1; then echo "  killed box '$lbl'."
+      else echo "  couldn't reach E2B to kill '$lbl' — retry: e2b-box kill"; fi
       rm -f "$BOXES_DIR/$k.json" "$BOXES_DIR/$k.log"
       ;;
     *)
@@ -122,9 +130,10 @@ on_close_prompt() {
 
 # Print the ready box's details and open an interactive shell into it.
 connect_shell() {
-  local k="$1" sid url ppath
+  local k="$1" sid url ppath lbl
   sid=$(field "$k" sandboxId); url=$(field "$k" url); ppath=$(field "$k" projectPath)
-  echo "● E2B box ready for '$k'"
+  lbl=$(field "$k" label); : "${lbl:=$k}"
+  echo "● E2B box ready for '$lbl'"
   [ -n "$url" ]   && echo "  preview : $url"
   [ -n "$ppath" ] && echo "  project : $ppath  (run: cd $ppath)"
   echo "  sandbox : $sid"
@@ -169,6 +178,7 @@ boot_and_connect() {
     provision_from_cwd "$key" ensure
   fi
   # Spin until ready, bounded so a hung provision can't loop forever.
+  local lbl; lbl=$(field "$key" label); : "${lbl:=$key}"
   frames='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'; i=0; max=4000   # ~20 min at 0.3s/iter
   missing=0; laststep="starting"
   while :; do
@@ -190,7 +200,7 @@ boot_and_connect() {
       printf '\r\033[K'; echo "timed out waiting for box '$key' (last: $laststep). see: e2b-box logs"; exit 1
     fi
     f=${frames:$((i % ${#frames})):1}; i=$((i + 1))
-    printf '\r\033[K%s  booting E2B box for %s … %s' "$f" "$key" "$laststep"
+    printf '\r\033[K%s  booting E2B box for %s … %s' "$f" "$lbl" "$laststep"
     sleep 0.3
   done
   printf '\r\033[K'
@@ -210,9 +220,9 @@ case "$cmd" in
     shopt -s nullglob
     files=("$BOXES_DIR"/*.json)
     if [ ${#files[@]} -eq 0 ]; then echo "no boxes"; else
-      printf '%-24s %-13s %-22s %s\n' KEY STATUS SANDBOX URL
+      printf '%-24s %-13s %-22s %s\n' BOX STATUS SANDBOX URL
       for f in "${files[@]}"; do
-        jq -r '[.key, (.status // "-"), (.sandboxId // "-"), (.url // "-")] | @tsv' "$f"
+        jq -r '[(.label // .key), (.status // "-"), (.sandboxId // "-"), (.url // "-")] | @tsv' "$f"
       done | while IFS=$'\t' read -r k s sid u; do printf '%-24s %-13s %-22s %s\n' "$k" "$s" "$sid" "$u"; done
     fi
     ;;
@@ -222,8 +232,9 @@ case "$cmd" in
     node_bin=$(e2b_node) || { echo "needs Node >= 22 (set HERDR_E2B_NODE)"; exit 1; }
     b=""; at_repo_root && b=$(git_branch); [ "$b" = "HEAD" ] && b=""
     p=$(box_root)
-    payload=$(jq -cn --arg k "$key" --arg b "$b" --arg p "$p" \
-      '{key:$k, branch:$b, worktreePath:$p, workspaceId:"", op:"sync"}')
+    l=$(label_from_cwd)
+    payload=$(jq -cn --arg k "$key" --arg b "$b" --arg p "$p" --arg l "$l" \
+      '{key:$k, label:$l, branch:$b, worktreePath:$p, workspaceId:"", op:"sync"}')
     echo "re-uploading '$key' worktree into its box…"
     "$node_bin" "$PLUGIN_DIR/src/provision.js" "$payload"
     ;;

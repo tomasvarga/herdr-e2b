@@ -6,11 +6,23 @@ CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/herdr/plugins/config/herdr-e2b"
 BOXES_DIR="$STATE_DIR/boxes"
 mkdir -p "$BOXES_DIR" 2>/dev/null || true
 
-# Derive a stable box key from a branch name (falls back to a path basename).
-# Keeps only filesystem/metadata-safe chars.
+# Sanitize a string to filesystem/metadata-safe chars.
 e2b_key() {
   local raw="$1"
   printf '%s' "$raw" | tr -c 'A-Za-z0-9._-' '-' | sed 's/^-*//; s/-*$//'
+}
+
+# Collision-free box key for an absolute path: "<folder>-<hash8>". The folder
+# name keeps records readable; the hash of the full path disambiguates two
+# folders that share a basename (which would otherwise collide on one record and
+# let removing one kill the other's box). Keep in sync with e2b-box/teardown.
+box_key() {
+  local p base h
+  p="$1"
+  base=$(e2b_key "$(basename "$p")")
+  h=$(printf '%s' "$p" | shasum -a 256 2>/dev/null | cut -c1-8)
+  [ -n "$h" ] || h=$(printf '%s' "$p" | cksum | tr -cd '0-9' | cut -c1-8)
+  printf '%s-%s' "${base:-box}" "$h"
 }
 
 # Resolve a Node >= 22. The `e2b` SDK require()s an ESM-only chalk, which older

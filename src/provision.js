@@ -19,6 +19,9 @@ import { uploadSnapshot } from "./upload.js"
 const input = JSON.parse(process.argv[2] || "{}")
 const { key, branch, worktreePath, workspaceId } = input
 const op = input.op === "sync" ? "sync" : "ensure"
+// Human-facing name (prompt/record). Defaults to the key if the caller didn't
+// pass one; the key itself may carry a disambiguating hash suffix.
+const displayLabel = (input.label || key).replace(/'/g, "")
 if (!key || !worktreePath) {
   console.error("provision: missing key/worktreePath")
   process.exit(2)
@@ -148,12 +151,11 @@ async function main() {
   // box needs it (a reconnected box already has it).
   if (created) {
     await step("personalizing shell")
-    const label = key.replace(/'/g, "") // prompt shows the folder/project name
     const rc =
       "# herdr-e2b\n" +
       "export HERDR_E2B=1\n" +
-      `export HERDR_E2B_BRANCH='${label}'\n` +
-      `PS1='\\[\\033[1;36m\\][e2b:${label}]\\[\\033[0m\\] \\w \\$ '\n` +
+      `export HERDR_E2B_BRANCH='${displayLabel}'\n` +
+      `PS1='\\[\\033[1;36m\\][e2b:${displayLabel}]\\[\\033[0m\\] \\w \\$ '\n` +
       `cd '${projectPath}' 2>/dev/null || true\n`
     await sandbox.files.write("/home/user/.herdr-e2b.sh", rc)
     await sandbox.commands
@@ -169,6 +171,7 @@ async function main() {
   await writeRecord(key, {
     status: "ready",
     step: "ready",
+    label: displayLabel,
     sandboxId: sandbox.sandboxId,
     url,
     projectPath: projectPath,
