@@ -152,9 +152,10 @@ preview port, upload batch size, ignore list).
 - **Boxes idle-time-out** after `[sandbox].timeout_ms` (default 1h, and the cap
   on E2B's hobby plan). If the box has died, `e2b-box open` detects it and
   **reprovisions** a fresh one rather than failing. Bump `timeout_ms` (paid plan)
-  for longer-lived boxes, or set `[sandbox].auto_pause = true` (paid plan) to
-  **pause instead of kill** on timeout — reconnecting then resumes the box with
-  its state instead of starting fresh.
+  for longer-lived boxes, or set `[sandbox].auto_pause = true` (**works on the
+  hobby plan**) to **pause instead of kill** on timeout — reconnecting resumes
+  the box with its state instead of starting fresh. On hobby (1h cap) this is the
+  best way to not lose in-box work when the timeout hits.
 
 ## License
 
