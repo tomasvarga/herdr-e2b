@@ -2,7 +2,10 @@ import { readFile, writeFile, mkdir, readdir, unlink, rename } from "node:fs/pro
 import path from "node:path"
 import os from "node:os"
 
+// Keep this resolution IN SYNC with bin/lib/paths.sh and tui/src/main.rs so the
+// writer (here), e2b-box, and the dashboard all agree on where records live.
 const STATE_DIR =
+  process.env.HERDR_PLUGIN_STATE_DIR ||
   process.env.HERDR_E2B_STATE_DIR ||
   path.join(
     process.env.XDG_STATE_HOME || path.join(os.homedir(), ".local/state"),

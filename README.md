@@ -95,6 +95,28 @@ or bind a key (optional) in your herdr config:
 `open` opens the interactive box pane; the one-shot verbs print to the plugin
 command log (`herdr plugin log list --plugin herdr-e2b`).
 
+## Dashboard (optional TUI)
+
+A live board of every tracked box — status, sandbox id, files — with per-box
+actions and theming. Run `e2b-dash`, open the **dashboard** pane, or invoke the
+`dashboard` action.
+
+![herdr-e2b dashboard](assets/dashboard.gif)
+
+- **Keys:** `↑/↓` move · `o` open · `s` sync · `p` pull · `x` kill · `r` refresh ·
+  `T` theme · `q` quit. `sync`/`pull`/`kill` **confirm first** and show the exact
+  target worktree; each action runs against *that box's own* worktree.
+- **`open`** hands the pane to the box shell, and on exit the dashboard offers
+  pull / kill / leave.
+- **Themes:** defaults to your terminal's palette; `T` cycles
+  `terminal · solarized-light · tokyonight · dracula · nord · gruvbox` (your
+  choice is remembered). Set a default with `[dashboard].theme` in the config.
+- **No dev tools needed:** `install.sh` uses a **prebuilt binary** (macOS
+  universal; Linux x64/arm64, glibc) when one matches your platform, and only
+  falls back to a `cargo build` from source otherwise. It's a single ~0.5–1 MB
+  binary. (musl/Alpine or older glibc: build from source — `cargo` is
+  auto-detected. Rebuild the shipped binaries with `tui/build-prebuilt.sh`.)
+
 ## How code gets in
 
 File selection follows **git**: `git ls-files --cached --others --exclude-standard`

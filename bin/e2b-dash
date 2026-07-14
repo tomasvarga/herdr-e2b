@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# e2b-dash — launch the herdr-e2b dashboard TUI (Ratatui). Resolves the built
+# binary, seeds the default theme from [dashboard].theme, and execs it. Any args
+# are forwarded (e.g. a boxes dir to point at sample data).
+set -uo pipefail
+# Resolve through the ~/.local/bin symlink to the real script dir (BSD readlink
+# has no -f, so walk the links manually).
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  ldir="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [ "${SOURCE#/}" = "$SOURCE" ] && SOURCE="$ldir/$SOURCE"
+done
+DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+source "$DIR/lib/paths.sh"
+
+BIN="$PLUGIN_DIR/tui/target/release/e2b-dash"
+if [ ! -x "$BIN" ]; then
+  echo "herdr-e2b: dashboard not built." >&2
+  echo "  build it:  (cd '$PLUGIN_DIR/tui' && cargo build --release)" >&2
+  echo "  (needs the Rust toolchain — https://rustup.rs)" >&2
+  exit 1
+fi
+
+# Seed the default theme from config. A saved 'T' choice inside the TUI still
+# wins; the env var is only the starting default. Needs any node (toml only).
+if [ -z "${E2B_DASH_THEME:-}" ] && command -v node >/dev/null 2>&1; then
+  t="$(node "$PLUGIN_DIR/src/resolve-theme.js" 2>/dev/null || true)"
+  [ -n "$t" ] && export E2B_DASH_THEME="$t"
+fi
+
+exec "$BIN" "$@"

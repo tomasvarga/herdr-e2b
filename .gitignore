@@ -1,6 +1,14 @@
 node_modules/
-# generated fresh by assets/seed-demo.sh for each recording
-demo/
+# generated fresh by assets/seed-demo.sh for each recording (root only — must
+# not swallow tui/demo/, whose seed.sh is tracked)
+/demo/
 assets/ctx-debug.log
 assets/release-notes.json
 /*.gif
+
+# throwaway TUI prototypes
+/poc/
+
+# dashboard TUI build output + generated demo data
+/tui/target/
+/tui/demo/sample-boxes/

@@ -129,14 +129,18 @@ on_close_prompt() {
 }
 
 # Print the ready box's details and open an interactive shell into it.
+# In dashboard mode (E2B_DASH=1) stay quiet and skip the on-close prompt — the
+# dashboard shows the box details and handles pull/kill/leave itself.
 connect_shell() {
   local k="$1" sid url ppath lbl
   sid=$(field "$k" sandboxId); url=$(field "$k" url); ppath=$(field "$k" projectPath)
   lbl=$(field "$k" label); : "${lbl:=$k}"
-  echo "● E2B box ready for '$lbl'"
-  [ -n "$url" ]   && echo "  preview : $url"
-  [ -n "$ppath" ] && echo "  project : $ppath  (run: cd $ppath)"
-  echo "  sandbox : $sid"
+  if [ "${E2B_DASH:-}" != 1 ]; then
+    echo "● E2B box ready for '$lbl'"
+    [ -n "$url" ]   && echo "  preview : $url"
+    [ -n "$ppath" ] && echo "  project : $ppath  (run: cd $ppath)"
+    echo "  sandbox : $sid"
+  fi
   ensure_e2b_path   # get a good node + the e2b CLI onto PATH (herdr may be on old node)
   ensure_e2b_key
   if ! command -v e2b >/dev/null 2>&1; then
@@ -148,9 +152,9 @@ connect_shell() {
   # `e2b sandbox connect` needs a raw TTY; without one it crashes and would take
   # the pane with it. Guard so we show instructions instead of dying silently.
   if [ -t 0 ] && [ -t 1 ]; then
-    echo "  connecting a shell — type 'exit' to come back here (pull / kill / leave)"
-    echo
+    [ "${E2B_DASH:-}" != 1 ] && { echo "  connecting a shell — type 'exit' to come back here (pull / kill / leave)"; echo; }
     e2b sandbox connect "$sid"        # blocks until you exit the box shell
+    [ "${E2B_DASH:-}" = 1 ] && exit 0 # dashboard owns the post-exit pull/kill/leave
     on_close_prompt "$k" "$sid"
     exit 0
   fi

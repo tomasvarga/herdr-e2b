@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Shared paths for herdr-e2b scripts. Source this from bin/* scripts.
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/herdr/plugins/herdr-e2b"
+# Keep IN SYNC with src/store.js and tui/src/main.rs so the writer, e2b-box, and
+# the dashboard all agree on where box records live.
+STATE_DIR="${HERDR_PLUGIN_STATE_DIR:-${HERDR_E2B_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/herdr/plugins/herdr-e2b}}"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/herdr/plugins/config/herdr-e2b"
 BOXES_DIR="$STATE_DIR/boxes"
 mkdir -p "$BOXES_DIR" 2>/dev/null || true

@@ -12,7 +12,7 @@ else
   echo "  ! npm not found — install Node.js (>=18), then re-run ./install.sh" >&2
 fi
 
-chmod +x bin/e2b-box bin/teardown-worktree 2>/dev/null || true
+chmod +x bin/e2b-box bin/e2b-dash bin/teardown-worktree 2>/dev/null || true
 
 BIN="${HOME}/.local/bin"
 mkdir -p "$BIN"
@@ -20,6 +20,36 @@ ln -sf "$DIR/bin/e2b-box" "$BIN/e2b-box"
 echo "herdr-e2b: linked e2b-box -> $BIN/e2b-box"
 
 command -v e2b >/dev/null 2>&1 || echo "  ! e2b CLI not found — 'npm i -g @e2b/cli' (needed for the box shell)"
+
+# Optional dashboard TUI (Rust/Ratatui). Prefer a committed PREBUILT binary so no
+# dev tools are needed; else build from source with cargo; else skip. The core
+# plugin works without it. The launcher always resolves tui/target/release/e2b-dash.
+ln -sf "$DIR/bin/e2b-dash" "$BIN/e2b-dash"
+prebuilt=""
+case "$(uname -s)" in
+  Darwin) prebuilt="e2b-dash-darwin-universal" ;;
+  Linux)  case "$(uname -m)" in
+            aarch64|arm64) prebuilt="e2b-dash-linux-arm64" ;;
+            x86_64)        prebuilt="e2b-dash-linux-x64" ;;
+          esac ;;
+esac
+mkdir -p "$DIR/tui/target/release"
+# Clear any stale/wrong-platform binary so we never run a leftover from another
+# machine; each branch below re-creates it (or leaves it absent → launcher errors).
+rm -f "$DIR/tui/target/release/e2b-dash"
+if [ -n "$prebuilt" ] && [ -f "$DIR/tui/prebuilt/$prebuilt" ]; then
+  chmod +x "$DIR/tui/prebuilt/$prebuilt" 2>/dev/null || true
+  ln -sf "../../prebuilt/$prebuilt" "$DIR/tui/target/release/e2b-dash"
+  echo "herdr-e2b: dashboard ready (prebuilt: $prebuilt) — run 'e2b-dash' or open the 'dashboard' pane."
+elif command -v cargo >/dev/null 2>&1; then
+  echo "herdr-e2b: no prebuilt for this platform — building the dashboard from source (cargo)…"
+  (cd "$DIR/tui" && cargo build --release >/dev/null 2>&1) \
+    && echo "  built — run 'e2b-dash'." \
+    || echo "  ! dashboard build failed (optional) — skipping; 'e2b-dash' will hint how to build."
+else
+  echo "herdr-e2b: no prebuilt dashboard for $(uname -sm) and Rust not found — skipping (optional)."
+  echo "  to enable it: install rustup (https://rustup.rs), then (cd tui && cargo build --release)."
+fi
 
 # API key: if we don't already have one (env or config), prompt to save it into
 # the plugin config. Interactive only — the `herdr plugin install` build step

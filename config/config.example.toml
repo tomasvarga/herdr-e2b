@@ -57,6 +57,13 @@ auto_resume  = true
 # your dev server listens on inside the box.
 server_port  = 3000
 
+[dashboard]
+# Default theme for the `e2b-dash` TUI. Omit (or "terminal"/"auto") to inherit
+# your terminal's own palette. Cycle live with `T` (that choice is remembered and
+# overrides this). Presets: terminal · solarized-light · tokyonight · dracula ·
+# nord · gruvbox.
+# theme = "terminal"
+
 [upload]
 # Files uploaded per batch (peak memory scales with this, not repo size).
 batch_size = 40

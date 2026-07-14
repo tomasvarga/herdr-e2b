@@ -47,7 +47,11 @@ export function loadConfig() {
   const sandbox = file.sandbox || {}
   const upload = file.upload || {}
   const secrets = file.secrets || {}
+  const dashboard = file.dashboard || {}
   return {
+    // Default theme for the dashboard TUI (empty = let the TUI decide: a saved
+    // choice, else "terminal"). See [dashboard] in config.example.toml.
+    dashboardTheme: dashboard.theme ?? "",
     template: sandbox.template ?? DEFAULTS.template,
     sandboxTimeoutMs: Number(sandbox.timeout_ms ?? DEFAULTS.sandboxTimeoutMs),
     autoPause: sandbox.auto_pause === true,
