@@ -8,8 +8,6 @@ remove the worktree.
 
 ![herdr-e2b demo](assets/demo.gif)
 
-> Status: early (v0.1). macOS + Linux.
-
 ## The loop
 
 Creating a worktree does **nothing** by itself — you decide which worktrees go
