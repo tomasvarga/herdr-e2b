@@ -137,6 +137,7 @@ connect_shell() {
   local k="$1" sid url ppath lbl
   sid=$(field "$k" sandboxId); url=$(field "$k" url); ppath=$(field "$k" projectPath)
   lbl=$(field "$k" label); : "${lbl:=$k}"
+  [ -n "$sid" ] || return 1
   if [ "${E2B_DASH:-}" != 1 ]; then
     echo "● E2B sandbox ready for '$lbl'"
     [ -n "$url" ]   && echo "  preview : $url"
@@ -155,10 +156,14 @@ connect_shell() {
   # the pane with it. Guard so we show instructions instead of dying silently.
   if [ -t 0 ] && [ -t 1 ]; then
     [ "${E2B_DASH:-}" != 1 ] && { echo "  attaching a shell in the sandbox — type 'exit' when done, then you'll pick: [p]ull changes · [k]ill · [L]eave running"; echo; }
-    e2b sandbox connect "$sid"        # blocks until you exit the sandbox shell
+    local start=$SECONDS
+    e2b sandbox connect "$sid"; local rc=$?   # blocks until you exit the shell
+    # A fast non-zero exit means we never attached (box idle-timed-out / paused) —
+    # not that your shell exited badly. Signal the caller so it can reprovision.
+    if [ "$rc" -ne 0 ] && [ "$((SECONDS - start))" -lt 2 ]; then return 2; fi
     [ "${E2B_DASH:-}" = 1 ] && exit 0 # dashboard owns the post-exit pull/kill/leave
     on_close_prompt "$k" "$sid"
-    exit 0
+    return 0
   fi
   echo
   echo "  ! this pane has no interactive terminal, so I can't attach a live shell."
@@ -176,6 +181,17 @@ connect_shell() {
 boot_and_connect() {
   local create_missing="$1" st raw step laststep frames f i max missing
   st=$(field "$key" status)
+
+  # Optimistic connect: if we already have a `ready` record with a sandbox id,
+  # attach straight away — this skips the ensure Node cold-start for a box that's
+  # already live (the common "reopen" case). On a fast failure (idle-timed-out /
+  # paused) connect_shell returns non-zero and we fall through to provision +
+  # resume below (which also auto-heals a dead box).
+  if [ "$st" = "ready" ] && [ -n "$(field "$key" sandboxId)" ]; then
+    connect_shell "$key" && exit 0
+    echo "  sandbox wasn't reachable — reprovisioning…"
+  fi
+
   if [ "$st" != "provisioning" ]; then
     if [ -z "$st" ] && [ "$create_missing" != "1" ]; then
       echo "no sandbox tracked for '$key' — run 'e2b-box open' to boot one." >&2
@@ -210,7 +226,7 @@ boot_and_connect() {
     sleep 0.3
   done
   printf '\r\033[K'
-  connect_shell "$key"
+  connect_shell "$key" || { echo "✗ couldn't attach to '$key' — see: e2b-box logs" >&2; exit 1; }
 }
 
 cmd="${1:-open}"
