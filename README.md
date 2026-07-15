@@ -42,8 +42,9 @@ copy of your worktree.
 
 ## Requirements
 
-- **herdr ≥ 0.7.0**, **Node.js ≥ 22** (the `e2b` SDK needs it; the plugin
-  auto-resolves a newer Node if herdr itself runs on an older one), **jq**
+- **herdr ≥ 0.7.0**, **Node.js ≥ 22** (older Node trips the `e2b` SDK's ESM
+  imports; the plugin auto-resolves a newer Node if herdr runs on an older one),
+  **jq**
 - **E2B**: the `@e2b/cli` (`e2b` on PATH, for the sandbox shell) and an API key
   ([dashboard](https://e2b.dev/dashboard)). Provide the key **either** way:
   - `[secrets].e2b_api_key` in the plugin config (herdr-native, out of your
@@ -103,7 +104,9 @@ command log (`herdr plugin log list --plugin herdr-e2b`).
 
 A live board of every tracked sandbox — status, sandbox id, files — with per-sandbox
 actions and theming (shown above). Run `e2b-dash`, open the **dashboard** pane, or
-invoke the `dashboard` action.
+invoke the `dashboard` action. Status is the **last known** state (it updates live
+as the plugin provisions/syncs); `open`/`Enter` reconcile with E2B, and `open`
+reprovisions a sandbox that has since idle-timed-out.
 
 - **Keys:** `↑/↓` move · `↵` worktree · `o` open · `s` sync · `p` pull · `x` kill ·
   `r` refresh · `T` theme · `q` quit. `sync`/`pull`/`kill` **confirm first** and
@@ -203,11 +206,10 @@ preview port, upload batch size, ignore list).
   display label.
 - Removing a worktree **kills** its sandbox (cost control) — this is intentional.
 - **Sandboxes idle-time-out** after `[sandbox].timeout_ms` (default 1h, and the cap
-  on E2B's hobby plan). If the sandbox has died, `e2b-box open` detects it and
+  on E2B's free tier). If the sandbox has died, `e2b-box open` detects it and
   **reprovisions** a fresh one rather than failing. Bump `timeout_ms` (paid plan)
-  for longer-lived sandboxes, or set `[sandbox].auto_pause = true` (**works on the
-  hobby plan**) to **pause instead of kill** on timeout — reconnecting resumes
-  the sandbox with its state instead of starting fresh. On hobby (1h cap) this is the
+  for longer-lived sandboxes, or set `[sandbox].auto_pause = true` (**works on the free tier**) to **pause instead of kill** on timeout — reconnecting resumes
+  the sandbox with its state instead of starting fresh. On the free tier (1h cap) this is the
   best way to not lose in-sandbox work when the timeout hits.
 
 ## License

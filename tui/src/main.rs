@@ -262,7 +262,7 @@ impl Verb {
     }
     fn confirm(self, label: &str, wt: &str) -> String {
         match self {
-            Verb::Sync => format!("SYNC  local → sandbox   overwrites the SANDBOX from {wt}   [y/N]"),
+            Verb::Sync => format!("SYNC  local → sandbox   uploads {wt} into the sandbox (additive)   [y/N]"),
             Verb::Pull => format!("PULL  sandbox → local   overwrites {wt} from the sandbox   [y/N]"),
             Verb::Kill => format!("KILL  '{label}'   destroys the sandbox   [y/N]"),
         }

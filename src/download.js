@@ -4,7 +4,7 @@
 // result with your local `git diff`.
 //
 // Usage: node download.js '{"key":"...","destRoot":"/abs/local/folder"}'
-import { writeFile, readFile, mkdir, appendFile } from "node:fs/promises"
+import { writeFile, readFile, mkdir, appendFile, lstat, realpath } from "node:fs/promises"
 import path from "node:path"
 import { posix } from "node:path"
 import { Sandbox } from "e2b"
@@ -45,32 +45,55 @@ async function main() {
   const projectPath = rec.projectPath || "/home/user/project"
   const sandbox = await Sandbox.connect(rec.sandboxId, { apiKey, timeoutMs: cfg.sandboxTimeoutMs })
 
-  // List the sandbox's files (git-aware; fall back to find for a non-repo sandbox dir).
+  // List the sandbox's files (git-aware; fall back to find for a non-repo sandbox
+  // dir). NUL-delimited so filenames with spaces/newlines survive (matches upload).
   const listed = await sandbox.commands.run(
     `cd '${projectPath}' && ` +
-      "(git ls-files --cached --others --exclude-standard 2>/dev/null " +
-      "|| (find . -type f -not -path './.git/*' | sed 's|^\\./||'))",
+      "(git ls-files -z --cached --others --exclude-standard 2>/dev/null " +
+      "|| find . -type f -not -path './.git/*' -printf '%P\\0')",
   )
   let files = listed.stdout
-    .split("\n")
-    .map((s) => s.replace(/\r$/, "").trim())
+    .split("\0")
     .filter(Boolean)
     .filter((f) => !f.endsWith("/"))
     .filter((rel) => !isIgnored(rel, cfg.ignore))
+
+  // Never write outside the worktree. Reject traversal, refuse to follow a
+  // symlink at the destination, and verify the (real) parent dir stays inside
+  // the worktree root — so a pre-existing local symlink can't redirect a write.
+  const rootReal = await realpath(destRoot)
+  async function safeDest(rel) {
+    if (path.isAbsolute(rel) || rel.split("/").includes("..")) return null
+    const dest = path.join(destRoot, rel)
+    try {
+      if ((await lstat(dest)).isSymbolicLink()) return null // don't follow it
+    } catch {
+      // doesn't exist — fine
+    }
+    await mkdir(path.dirname(dest), { recursive: true })
+    const parentReal = await realpath(path.dirname(dest))
+    if (parentReal !== rootReal && !parentReal.startsWith(rootReal + path.sep)) return null
+    return dest
+  }
 
   // Classify each file against the local copy: new / overwritten / unchanged.
   // Only write what actually differs (so unchanged files aren't touched), and
   // report exactly what changed — the "message in case of overwrites".
   const added = []
   const overwritten = []
+  const skipped = []
   let unchanged = 0
-  const batchSize = cfg.batchSize || 40
+  const batchSize = cfg.batchSize > 0 ? cfg.batchSize : 40
   for (let i = 0; i < files.length; i += batchSize) {
     const batch = files.slice(i, i + batchSize)
     await Promise.all(
       batch.map(async (rel) => {
+        const dest = await safeDest(rel)
+        if (!dest) {
+          skipped.push(rel)
+          return // unsafe path (traversal / symlink) — never write it
+        }
         const data = Buffer.from(await sandbox.files.read(posix.join(projectPath, rel), { format: "bytes" }))
-        const dest = path.join(destRoot, rel)
         let local = null
         try {
           local = await readFile(dest)
@@ -85,7 +108,6 @@ async function main() {
           unchanged += 1
           return // identical — leave it alone
         }
-        await mkdir(path.dirname(dest), { recursive: true })
         await writeFile(dest, data)
       }),
     )
@@ -93,15 +115,17 @@ async function main() {
 
   added.sort()
   overwritten.sort()
+  skipped.sort()
   for (const f of added) console.log(`  + ${f}  (new)`)
   for (const f of overwritten) console.log(`  ~ ${f}  (overwrote local)`)
+  for (const f of skipped) console.log(`  ! ${f}  (skipped — unsafe path/symlink)`)
   const changed = added.length + overwritten.length
   console.log(
     changed === 0
-      ? `nothing to pull — local already matches the sandbox (${unchanged} files)`
-      : `pulled ${changed} file(s): ${added.length} new, ${overwritten.length} overwritten, ${unchanged} unchanged`,
+      ? `nothing to pull — local already matches the sandbox (${unchanged} files)${skipped.length ? `, ${skipped.length} skipped` : ""}`
+      : `pulled ${changed} file(s): ${added.length} new, ${overwritten.length} overwritten, ${unchanged} unchanged${skipped.length ? `, ${skipped.length} skipped` : ""}`,
   )
-  await log(`pull: ${added.length} new, ${overwritten.length} overwritten, ${unchanged} unchanged → ${destRoot}`)
+  await log(`pull: ${added.length} new, ${overwritten.length} overwritten, ${unchanged} unchanged, ${skipped.length} skipped → ${destRoot}`)
 }
 
 main().catch((err) => {

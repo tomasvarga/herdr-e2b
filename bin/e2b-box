@@ -118,9 +118,11 @@ on_close_prompt() {
       echo "  sandbox left running (auto-pauses at the timeout; e2b-box kill to stop it)."
       ;;
     k|K|kill)
-      if sdk_kill "$sid" >/dev/null 2>&1; then echo "  killed sandbox '$lbl'."
-      else echo "  couldn't reach E2B to kill '$lbl' — retry: e2b-box kill"; fi
-      rm -f "$BOXES_DIR/$k.json" "$BOXES_DIR/$k.log"
+      if sdk_kill "$sid" >/dev/null 2>&1; then
+        echo "  killed sandbox '$lbl'."; rm -f "$BOXES_DIR/$k.json" "$BOXES_DIR/$k.log"
+      else
+        echo "  ! couldn't kill '$lbl' — keeping the record so it isn't orphaned; retry with 'e2b-box kill'."
+      fi
       ;;
     *)
       echo "  left running — auto-pauses at the idle timeout; 'e2b-box open' to return."
@@ -270,9 +272,16 @@ case "$cmd" in
     ;;
   kill)
     sid=$(field "$key" sandboxId)
-    [ -n "$sid" ] && sdk_kill "$sid" >/dev/null 2>&1 || true
-    rm -f "$BOXES_DIR/$key.json" "$BOXES_DIR/$key.log"
-    echo "killed sandbox for '$key'"
+    if [ -z "$sid" ]; then
+      rm -f "$BOXES_DIR/$key.json" "$BOXES_DIR/$key.log"; echo "cleared '$key' (no sandbox tracked)"
+    elif sdk_kill "$sid"; then
+      rm -f "$BOXES_DIR/$key.json" "$BOXES_DIR/$key.log"; echo "killed sandbox for '$key'"
+    else
+      # kill failed — KEEP the record (with the sandbox id) so the box isn't
+      # silently orphaned & billable. Retry, or check `e2b sandbox list`.
+      echo "✗ couldn't kill $sid for '$key' — record kept so you can retry: e2b-box kill" >&2
+      exit 1
+    fi
     ;;
   up)
     # Boot the sandbox in the background; don't attach.

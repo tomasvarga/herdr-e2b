@@ -28,9 +28,14 @@ done
 
 [ -f "$BOXES_DIR/$key.json" ] || exit 0   # no sandbox for this worktree — nothing to do
 sid=$(jq -r '.sandboxId // empty' "$BOXES_DIR/$key.json" 2>/dev/null)
-if [ -n "$sid" ]; then
-  sdk_kill "$sid" >/dev/null 2>&1 || true   # SDK kill (bounded); no e2b CLI needed
-  herdr notification show "E2B" --body "Sandbox for $key torn down" >/dev/null 2>&1 || true
+if [ -z "$sid" ] || sdk_kill "$sid" >/dev/null 2>&1; then
+  # killed (or already gone / no sandbox) → drop the record
+  rm -f "$BOXES_DIR/$key.json" "$BOXES_DIR/$key.log" 2>/dev/null || true
+  [ -n "$sid" ] && herdr notification show "E2B" --body "Sandbox for $key torn down" >/dev/null 2>&1 || true
+else
+  # kill FAILED — keep the record (with the sandbox id) rather than orphan a
+  # billable sandbox; the worktree is gone, so retry via the dashboard or
+  # `KEY=$key e2b-box kill`.
+  herdr notification show "E2B" --body "Couldn't kill sandbox for $key — retry: KEY=$key e2b-box kill" >/dev/null 2>&1 || true
 fi
-rm -f "$BOXES_DIR/$key.json" "$BOXES_DIR/$key.log" 2>/dev/null || true
 exit 0

@@ -35,13 +35,13 @@ template     = "base"
 # template = "opencode"
 
 # Idle window before E2B stops the sandbox (ms). Default 1h — which is also the cap
-# on E2B's hobby/free plan (a longer value there just fails). On a paid plan,
+# on E2B's free tier (a longer value there just fails). On a paid plan,
 # bump it for longer-lived sandboxes; 3h is a sane minimum:
 #   timeout_ms = 10800000   # 3h  (needs a paid E2B plan)
 timeout_ms   = 3600000
 
 # Pause the sandbox on idle-timeout instead of killing it (SDK lifecycle
-# onTimeout=pause), so its state is preserved. Works on the hobby plan and is the
+# onTimeout=pause), so its state is preserved. Works on the free tier and is the
 # best way to not lose work at the 1h timeout. Default false; set true to enable.
 auto_pause   = false
 # Only when auto_pause: wake the sandbox (restore its memory) automatically on the

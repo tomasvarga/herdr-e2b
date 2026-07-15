@@ -4,13 +4,17 @@ import path from "node:path"
 import { posix } from "node:path"
 
 /**
- * Mirror the local worktree into the sandbox project directory.
+ * Upload the local worktree into the sandbox project directory. This is additive
+ * (a re-sync writes current files but does NOT delete sandbox files you removed
+ * locally) — it's a snapshot copy, not a destructive mirror.
  *
  * File selection honors git: `git ls-files --cached --others --exclude-standard`
  * gives exactly what git sees — tracked files (including your uncommitted edits)
  * plus new untracked files, while respecting `.gitignore`. So build output,
  * caches, coverage, etc. don't get uploaded. Falls back to a filesystem walk
- * (with the ignore list) when the worktree isn't a git repo.
+ * (with the ignore list) ONLY when the worktree isn't a git repo — inside a repo
+ * we always trust git, even when the selection is empty, so a repo whose files
+ * are all git-ignored uploads nothing rather than leaking ignored files.
  *
  * The ignore list is applied on top of both, so entries like `.env` stay out
  * even if a repo happens to track them.
@@ -23,17 +27,17 @@ export async function uploadSnapshot({
   batchSize = 40,
   onProgress,
 }) {
-  let files = await gitFiles(localRoot)
-  let viaGit = files !== null
-  // Drop directory/submodule boundary entries git emits for nested untracked
-  // repos (e.g. "sub/") — they're not files and carry no content here.
-  if (viaGit) files = files.filter((p) => !p.endsWith("/"))
-  // Not a repo, or git surfaced nothing usable (e.g. the folder is just a
-  // nested repo boundary) → walk the folder directly.
-  if (!viaGit || files.length === 0) {
+  const gitList = await gitFiles(localRoot) // null ⇒ not a git repo
+  const viaGit = gitList !== null
+  let files
+  if (viaGit) {
+    // Drop directory/submodule boundary entries git emits for nested untracked
+    // repos (e.g. "sub/") — they're not files and carry no content here.
+    files = gitList.filter((p) => !p.endsWith("/"))
+  } else {
+    // Not a git repo → walk the folder directly (ignore list is the only filter).
     const rootReal = await realpath(localRoot)
     files = await collect(localRoot, localRoot, ignore, { rootReal, seen: new Set() })
-    viaGit = false
   }
   files = files.filter((rel) => !isIgnored(rel, ignore))
 

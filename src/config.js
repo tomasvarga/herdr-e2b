@@ -36,6 +36,13 @@ const DEFAULTS = {
   ],
 }
 
+/** Coerce to a positive integer, else the default (guards zero/negative/NaN — a
+ * zero batch size would infinite-loop the upload/download chunkers). */
+function posInt(v, dflt) {
+  const n = Math.floor(Number(v))
+  return Number.isFinite(n) && n > 0 ? n : dflt
+}
+
 /** Load config.toml (all keys optional) merged over the defaults above. */
 export function loadConfig() {
   let file = {}
@@ -53,12 +60,12 @@ export function loadConfig() {
     // choice, else "terminal"). See [dashboard] in config.example.toml.
     dashboardTheme: dashboard.theme ?? "",
     template: sandbox.template ?? DEFAULTS.template,
-    sandboxTimeoutMs: Number(sandbox.timeout_ms ?? DEFAULTS.sandboxTimeoutMs),
+    sandboxTimeoutMs: posInt(sandbox.timeout_ms, DEFAULTS.sandboxTimeoutMs),
     autoPause: sandbox.auto_pause === true,
     autoResume: sandbox.auto_resume ?? DEFAULTS.autoResume,
     projectPath: sandbox.project_path ?? DEFAULTS.projectPath,
-    serverPort: Number(sandbox.server_port ?? DEFAULTS.serverPort),
-    batchSize: Number(upload.batch_size ?? DEFAULTS.batchSize),
+    serverPort: posInt(sandbox.server_port, DEFAULTS.serverPort),
+    batchSize: posInt(upload.batch_size, DEFAULTS.batchSize),
     ignore: Array.isArray(upload.ignore) ? upload.ignore : DEFAULTS.ignore,
     // Per-branch template overrides: first matching rule wins, else `template`.
     templateRules: Array.isArray(sandbox.template_rules)

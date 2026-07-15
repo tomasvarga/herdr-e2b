@@ -73,8 +73,10 @@ ensure_e2b_path() {
 # non-zero only if a real kill error occurred (already-gone counts as success).
 sdk_kill() {
   local sid="$1" node_bin
-  [ -n "$sid" ] || return 0
-  node_bin=$(e2b_node) || return 0   # no usable node: skip (nothing we can do)
+  [ -n "$sid" ] || return 0           # nothing to kill → success
+  node_bin=$(e2b_node) || return 1     # no usable Node → could NOT kill (keep the record)
+  # kill.js exits 0 when the sandbox is killed OR already gone, non-zero on a real
+  # failure — so callers must only delete the record on success.
   "$node_bin" "$PLUGIN_DIR/src/kill.js" "$sid"
 }
 

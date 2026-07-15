@@ -1,5 +1,5 @@
 // Worker: ensure an E2B sandbox exists for a worktree (reconnect to the tracked
-// one, or create a fresh one), and optionally mirror the local tree into it.
+// one, or create a fresh one), and optionally upload the local tree into it.
 // Launched by bin/e2b-box. Writes live progress into the sandbox record so the pane
 // can render a spinner.
 //

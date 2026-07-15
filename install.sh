@@ -7,9 +7,14 @@ cd "$DIR"
 
 echo "herdr-e2b: installing node deps…"
 if command -v npm >/dev/null 2>&1; then
-  npm install --omit=dev --no-audit --no-fund >/dev/null 2>&1 || npm install
+  # Reproducible install from the committed lockfile when possible.
+  if [ -f package-lock.json ]; then
+    npm ci --omit=dev --no-audit --no-fund >/dev/null 2>&1 || npm install --omit=dev --no-audit --no-fund >/dev/null 2>&1 || npm install
+  else
+    npm install --omit=dev --no-audit --no-fund >/dev/null 2>&1 || npm install
+  fi
 else
-  echo "  ! npm not found — install Node.js (>=18), then re-run ./install.sh" >&2
+  echo "  ! npm not found — install Node.js (>=22), then re-run ./install.sh" >&2
 fi
 
 chmod +x bin/e2b-box bin/e2b-dash bin/teardown-worktree 2>/dev/null || true
@@ -28,10 +33,15 @@ ln -sf "$DIR/bin/e2b-dash" "$BIN/e2b-dash"
 prebuilt=""
 case "$(uname -s)" in
   Darwin) prebuilt="e2b-dash-darwin-universal" ;;
-  Linux)  case "$(uname -m)" in
-            aarch64|arm64) prebuilt="e2b-dash-linux-arm64" ;;
-            x86_64)        prebuilt="e2b-dash-linux-x64" ;;
-          esac ;;
+  Linux)
+    # The Linux prebuilts are glibc-dynamic — on musl (Alpine) they won't run, so
+    # skip them there and let the cargo path build from source instead.
+    if ! ldd --version 2>&1 | grep -qi musl; then
+      case "$(uname -m)" in
+        aarch64|arm64) prebuilt="e2b-dash-linux-arm64" ;;
+        x86_64)        prebuilt="e2b-dash-linux-x64" ;;
+      esac
+    fi ;;
 esac
 mkdir -p "$DIR/tui/target/release"
 # Clear any stale/wrong-platform binary so we never run a leftover from another
