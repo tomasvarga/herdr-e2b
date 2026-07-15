@@ -3,14 +3,17 @@
 // e2b-box actions against EACH SANDBOX'S OWN worktreePath (shown in the UI), with
 // a confirm gate on the ones that overwrite or destroy. Single static binary.
 //
-// Theming: defaults to the TERMINAL's own palette (so it inherits whatever
-// theme your terminal / herdr uses). Cycle live with `T`, or pick a start theme
-// with E2B_DASH_THEME (or "auto" = terminal):
+// Theming: defaults to the TERMINAL's own palette (so it inherits whatever theme
+// your terminal / herdr uses). Cycle live with `T`, or seed a start theme with
+// E2B_DASH_THEME (or "auto" = terminal):
 //   terminal (default) | solarized-light | tokyo-night | dracula | nord | gruvbox
 //
 //   cargo run --release -- [boxes_dir]
+mod actions;
+mod state;
+mod theme;
+
 use std::{
-    fs,
     path::PathBuf,
     process::Command,
     time::{Duration, Instant},
@@ -19,287 +22,15 @@ use std::{
 use crossterm::event::{self, Event, KeyCode};
 use ratatui::{
     layout::{Constraint, Layout},
-    style::{Color, Modifier, Style, Stylize},
+    style::{Modifier, Style, Stylize},
     text::Line,
     widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState},
     Frame,
 };
-use serde::Deserialize;
 
-// ---------------- theme ----------------
-
-struct Theme {
-    accent: Color,
-    dim: Color,
-    border: Color,
-    ready: Color,
-    paused: Color,
-    prov: Color,
-    failed: Color,
-    sel: Style,     // selected-row style
-    confirm: Style, // confirm bar style
-}
-
-fn rgb(hex: u32) -> Color {
-    Color::Rgb((hex >> 16) as u8, (hex >> 8) as u8, hex as u8)
-}
-
-/// POSIX shell single-quote a value so it's a single safe token (paths with
-/// spaces, $, backticks, quotes can't expand or break out of `bash -lc`).
-fn sh(s: &str) -> String {
-    format!("'{}'", s.replace('\'', "'\\''"))
-}
-
-/// Enter: go to a sandbox's local worktree. Focus an already-open herdr
-/// workspace for that path (no duplicate), else open it fresh. Only meaningful
-/// inside herdr. Returns a status message for the footer.
-fn goto_worktree(label: &str, wt: &str) -> String {
-    if wt.is_empty() {
-        return format!("{label}: no worktree path");
-    }
-    if std::env::var("HERDR_SOCKET_PATH").map_or(true, |s| s.is_empty()) {
-        return "↵ needs herdr (press o to open the sandbox instead)".into();
-    }
-    let herdr = std::env::var("HERDR_BIN_PATH")
-        .ok()
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "herdr".into());
-    // Find an open pane whose cwd is the worktree (or a subdir), then:
-    //  - different workspace → workspace focus (+ tab focus)
-    //  - same workspace, other tab → tab focus
-    //  - same workspace + tab → just UNZOOM the dashboard's own pane (you're
-    //    already in this worktree; the board is zoomed over it)
-    //  - not open anywhere → open it fresh (--focus)
-    let sel = "'.result.panes[] | select(.cwd==$wt or (.cwd|startswith($wt+\"/\")) or .foreground_cwd==$wt or (.foreground_cwd|startswith($wt+\"/\"))) | \"\\(.workspace_id) \\(.tab_id)\"'";
-    let script = format!(
-        "wt={wt}; sel=$({h} pane list 2>/dev/null | jq -r --arg wt \"$wt\" {sel} | head -1); \
-ws=$(echo \"$sel\" | cut -d' ' -f1); tab=$(echo \"$sel\" | cut -d' ' -f2); \
-if [ -z \"$ws\" ]; then \
-  if [ -d \"$wt\" ]; then {h} workspace create --cwd \"$wt\" --focus >/dev/null 2>&1 && echo opened || echo missing; else echo missing; fi; \
-elif [ \"$ws\" != \"$HERDR_WORKSPACE_ID\" ]; then \
-  {h} workspace focus \"$ws\" >/dev/null 2>&1; {h} tab focus \"$tab\" >/dev/null 2>&1; echo switched; \
-elif [ \"$tab\" != \"$HERDR_TAB_ID\" ]; then \
-  {h} tab focus \"$tab\" >/dev/null 2>&1; echo switched; \
-else \
-  {h} pane zoom --pane \"$HERDR_PANE_ID\" --off >/dev/null 2>&1 || {h} pane zoom --current --off >/dev/null 2>&1; echo unzoomed; \
-fi",
-        wt = sh(wt),
-        h = sh(&herdr),
-        sel = sel,
-    );
-    let word = Command::new("bash")
-        .arg("-lc")
-        .arg(&script)
-        .env_remove("HERDR_PLUGIN_CONTEXT_JSON")
-        .output()
-        .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.trim().to_string())
-        .unwrap_or_default();
-    match word.as_str() {
-        "switched" => format!("→ switched to {label}'s worktree"),
-        "opened" => format!("→ opened {label}'s worktree"),
-        "unzoomed" => format!("→ {label} is here — unzoomed the board"),
-        "missing" => format!("{label}: worktree not open & not found locally"),
-        _ => format!("{label}: couldn't switch"),
-    }
-}
-
-// Cycle order for the `T` key. "terminal" (== auto) is first so it's the default.
-const THEMES: [&str; 6] = ["terminal", "solarized-light", "tokyo-night", "dracula", "nord", "gruvbox"];
-
-fn theme_from(name: &str) -> Theme {
-    match name {
-        // Solarized Light — tuned for a LIGHT terminal background.
-        "solarized-light" => Theme {
-            accent: rgb(0x268bd2),
-            dim: rgb(0x586e75),
-            border: rgb(0x93a1a1),
-            ready: rgb(0x859900),
-            paused: rgb(0xb58900),
-            prov: rgb(0x268bd2),
-            failed: rgb(0xdc322f),
-            sel: Style::default().bg(rgb(0xeee8d5)).fg(rgb(0x002b36)).add_modifier(Modifier::BOLD),
-            confirm: Style::default().bg(rgb(0xb58900)).fg(rgb(0xfdf6e3)).add_modifier(Modifier::BOLD),
-        },
-        "tokyo-night" => Theme {
-            accent: rgb(0x7aa2f7),
-            dim: rgb(0x565f89),
-            border: rgb(0x3b4261),
-            ready: rgb(0x9ece6a),
-            paused: rgb(0xe0af68),
-            prov: rgb(0x7dcfff),
-            failed: rgb(0xf7768e),
-            sel: Style::default().bg(rgb(0x283457)).fg(rgb(0xc0caf5)).add_modifier(Modifier::BOLD),
-            confirm: Style::default().bg(rgb(0xe0af68)).fg(rgb(0x1a1b26)).add_modifier(Modifier::BOLD),
-        },
-        "dracula" => Theme {
-            accent: rgb(0xbd93f9),
-            dim: rgb(0x6272a4),
-            border: rgb(0x44475a),
-            ready: rgb(0x50fa7b),
-            paused: rgb(0xf1fa8c),
-            prov: rgb(0x8be9fd),
-            failed: rgb(0xff5555),
-            sel: Style::default().bg(rgb(0x44475a)).fg(rgb(0xf8f8f2)).add_modifier(Modifier::BOLD),
-            confirm: Style::default().bg(rgb(0xf1fa8c)).fg(rgb(0x282a36)).add_modifier(Modifier::BOLD),
-        },
-        "nord" => Theme {
-            accent: rgb(0x88c0d0),
-            dim: rgb(0x4c566a),
-            border: rgb(0x434c5e),
-            ready: rgb(0xa3be8c),
-            paused: rgb(0xebcb8b),
-            prov: rgb(0x81a1c1),
-            failed: rgb(0xbf616a),
-            sel: Style::default().bg(rgb(0x3b4252)).fg(rgb(0xeceff4)).add_modifier(Modifier::BOLD),
-            confirm: Style::default().bg(rgb(0xebcb8b)).fg(rgb(0x2e3440)).add_modifier(Modifier::BOLD),
-        },
-        "gruvbox" => Theme {
-            accent: rgb(0x83a598),
-            dim: rgb(0x928374),
-            border: rgb(0x504945),
-            ready: rgb(0xb8bb26),
-            paused: rgb(0xfabd2f),
-            prov: rgb(0x83a598),
-            failed: rgb(0xfb4934),
-            sel: Style::default().bg(rgb(0x3c3836)).fg(rgb(0xebdbb2)).add_modifier(Modifier::BOLD),
-            confirm: Style::default().bg(rgb(0xfabd2f)).fg(rgb(0x282828)).add_modifier(Modifier::BOLD),
-        },
-        // "terminal" (default): use the terminal's OWN 16-color palette via named
-        // ANSI colors, and a REVERSED selection — so it blends with any terminal
-        // theme (tokyo-night in herdr, someone else's solarized, etc.).
-        _ => Theme {
-            accent: Color::Cyan,
-            dim: Color::DarkGray,
-            border: Color::Blue,
-            ready: Color::Green,
-            paused: Color::Yellow,
-            prov: Color::Cyan,
-            failed: Color::Red,
-            sel: Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD),
-            confirm: Style::default().fg(Color::Black).bg(Color::Yellow).add_modifier(Modifier::BOLD),
-        },
-    }
-}
-
-// Plugin state dir. Prefer herdr's own HERDR_PLUGIN_STATE_DIR (set for plugin
-// panes), then the plugin's HERDR_E2B_STATE_DIR override, then the XDG path the
-// node side writes to. Independent of the boxes-dir arg (which may be samples).
-fn state_dir() -> PathBuf {
-    if let Ok(d) = std::env::var("HERDR_PLUGIN_STATE_DIR") {
-        return PathBuf::from(d);
-    }
-    if let Ok(d) = std::env::var("HERDR_E2B_STATE_DIR") {
-        return PathBuf::from(d);
-    }
-    if let Ok(d) = std::env::var("XDG_STATE_HOME") {
-        return PathBuf::from(d).join("herdr/plugins/herdr-e2b");
-    }
-    PathBuf::from(std::env::var("HOME").unwrap_or_default())
-        .join(".local/state/herdr/plugins/herdr-e2b")
-}
-fn theme_file() -> PathBuf {
-    state_dir().join("dashboard-theme")
-}
-
-fn save_theme(name: &str) {
-    let p = theme_file();
-    if let Some(dir) = p.parent() {
-        let _ = fs::create_dir_all(dir);
-    }
-    let _ = fs::write(p, name);
-}
-
-// Starting theme: a saved `T` choice wins (so it persists), else the
-// E2B_DASH_THEME seed ("auto" -> terminal), else default (terminal).
-fn initial_theme_idx() -> usize {
-    if let Ok(s) = fs::read_to_string(theme_file()) {
-        if let Some(i) = THEMES.iter().position(|&t| t == s.trim()) {
-            return i;
-        }
-    }
-    let mut want = std::env::var("E2B_DASH_THEME").unwrap_or_default();
-    if want == "auto" {
-        want = "terminal".into();
-    }
-    THEMES.iter().position(|&t| t == want).unwrap_or(0)
-}
-
-// ---------------- data ----------------
-
-#[derive(Deserialize, Default, Clone)]
-struct Box {
-    key: String,
-    #[serde(default)]
-    label: String,
-    #[serde(default)]
-    status: String,
-    #[serde(default)]
-    step: String,
-    #[serde(default, rename = "sandboxId")]
-    sandbox_id: String,
-    #[serde(default)]
-    files: u32,
-    #[serde(default, rename = "worktreePath")]
-    worktree_path: String,
-}
-
-#[derive(Clone, Copy)]
-enum Verb {
-    Sync,
-    Pull,
-    Kill,
-}
-
-impl Verb {
-    fn cmd(self) -> &'static str {
-        match self {
-            Verb::Sync => "sync",
-            Verb::Pull => "pull",
-            Verb::Kill => "kill",
-        }
-    }
-    fn confirm(self, label: &str, wt: &str) -> String {
-        match self {
-            Verb::Sync => format!("SYNC  local → sandbox   uploads {wt} into the sandbox (additive)   [y/N]"),
-            Verb::Pull => format!("PULL  sandbox → local   overwrites {wt} from the sandbox   [y/N]"),
-            Verb::Kill => format!("KILL  '{label}'   destroys the sandbox   [y/N]"),
-        }
-    }
-}
-
-fn load_boxes(dir: &PathBuf) -> Vec<Box> {
-    let mut out: Vec<Box> = Vec::new();
-    if let Ok(entries) = fs::read_dir(dir) {
-        for e in entries.flatten() {
-            let p = e.path();
-            if p.extension().and_then(|s| s.to_str()) != Some("json") {
-                continue;
-            }
-            if let Ok(txt) = fs::read_to_string(&p) {
-                if let Ok(mut b) = serde_json::from_str::<Box>(&txt) {
-                    if b.label.is_empty() {
-                        b.label = b.key.clone();
-                    }
-                    out.push(b);
-                }
-            }
-        }
-    }
-    out.sort_by(|a, b| a.label.cmp(&b.label));
-    out
-}
-
-fn status_glyph_color(theme: &Theme, s: &str) -> (&'static str, Color) {
-    match s {
-        "ready" => ("●", theme.ready),
-        "paused" => ("●", theme.paused),
-        "provisioning" => ("◐", theme.prov),
-        "failed" => ("●", theme.failed),
-        _ => ("○", theme.dim),
-    }
-}
+use actions::{goto_worktree, Verb};
+use state::{load_boxes, sh, state_dir, Box};
+use theme::{initial_theme_idx, save_theme, status_glyph_color, theme_from, Theme, THEMES};
 
 struct App {
     dir: PathBuf,
@@ -310,7 +41,7 @@ struct App {
     msg: String,
     pending: Option<Verb>,
     run: Option<(String, String, &'static str, String)>, // (label, key, verb, worktree)
-    post_open: Option<(String, String, String)>,         // after a shell exits: (label, key, worktree)
+    post_open: Option<(String, String, String)>,          // after a shell exits: (label, key, worktree)
 }
 
 impl App {
