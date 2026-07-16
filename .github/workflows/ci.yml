@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  version-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: package.json and herdr-plugin.toml versions match
+        run: |
+          pkg=$(jq -r .version package.json)
+          man=$(grep -E '^version' herdr-plugin.toml | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "package.json=$pkg  herdr-plugin.toml=$man"
+          [ "$pkg" = "$man" ] || { echo "::error::version mismatch ($pkg vs $man)"; exit 1; }
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: [22, 24]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      # Offline: unit tests (config + pull path guards) + lint + CLI exit-code checks.
+      - run: npm test

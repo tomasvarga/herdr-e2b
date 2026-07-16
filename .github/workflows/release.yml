@@ -1,0 +1,48 @@
+name: Release
+
+# Tag a version to publish it: `git tag vX.Y.Z && git push origin main --tags`.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # create the GitHub Release + upload assets
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm test
+
+      - name: Verify tag matches package.json and herdr-plugin.toml versions
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg=$(jq -r .version package.json)
+          man=$(grep -E '^version' herdr-plugin.toml | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "tag=$tag  package.json=$pkg  herdr-plugin.toml=$man"
+          [ "$tag" = "$pkg" ] && [ "$tag" = "$man" ] \
+            || { echo "::error::tag $GITHUB_REF_NAME does not match versions ($pkg / $man)"; exit 1; }
+
+      - name: Build release notes from CHANGELOG
+        run: |
+          bash scripts/changelog-notes.sh "${GITHUB_REF_NAME#v}" > RELEASE_NOTES.md
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "::error::no CHANGELOG section for ${GITHUB_REF_NAME#v}"; exit 1
+          fi
+          cat RELEASE_NOTES.md
+
+      - name: Publish GitHub Release (with prebuilt dashboard binaries)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file RELEASE_NOTES.md \
+            tui/prebuilt/e2b-dash-darwin-universal \
+            tui/prebuilt/e2b-dash-linux-x64 \
+            tui/prebuilt/e2b-dash-linux-arm64

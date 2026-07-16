@@ -1,5 +1,7 @@
 # herdr-e2b
 
+[![CI](https://github.com/tomasvarga/herdr-e2b/actions/workflows/ci.yml/badge.svg)](https://github.com/tomasvarga/herdr-e2b/actions/workflows/ci.yml)
+
 Send a [herdr](https://herdr.dev) git worktree to a fresh [E2B](https://e2b.dev)
 cloud sandbox **on demand** — a **snapshot upload of the live tree, uncommitted
 changes and all** (no push, no clone, no creds). Press `prefix+shift+e` in a
