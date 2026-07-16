@@ -77,7 +77,7 @@ up. In the worktree you want in the cloud:
     e2b-box list           # every tracked sandbox
     e2b-box url            # preview URL (https://<port>-<id>.e2b.app)
     e2b-box logs           # tail provisioning progress
-    e2b-box sync           # re-upload the current worktree into its sandbox (local → sandbox)
+    e2b-box sync           # re-upload the current worktree into its sandbox (local → sandbox; provisions one if none yet)
     e2b-box pull [--force] # download the sandbox's files back into this folder (sandbox → local)
     e2b-box kill           # kill this worktree's sandbox
 

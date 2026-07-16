@@ -236,7 +236,13 @@ boot_and_connect() {
   # already live (the common "reopen" case). On a fast failure (idle-timed-out /
   # paused) connect_shell returns non-zero and we fall through to provision +
   # resume below (which also auto-heals a dead box).
-  if [ "$st" = "ready" ] && [ -n "$(field "$key" sandboxId)" ]; then
+  #
+  # ONLY with a TTY: the real `e2b sandbox connect` attempt IS the liveness check
+  # here. With no TTY connect_shell can't attach and just prints instructions — so
+  # a stale `ready` record would have it point at a dead box without reconciling.
+  # Headless callers therefore skip this and go through `ensure` below (an SDK
+  # reconnect/resume, or recreate if gone), so the box is verified live first.
+  if [ "$st" = "ready" ] && [ -n "$(field "$key" sandboxId)" ] && [ -t 0 ] && [ -t 1 ]; then
     connect_shell "$key" && exit 0
     echo "  sandbox wasn't reachable — reprovisioning…"
   fi
@@ -280,7 +286,10 @@ case "$cmd" in
       echo "status is last known — a 'ready' box may be paused/idle-timed-out; 'e2b-box open' reconciles." >&2
     fi
     ;;
-  url)   field "$key" url ;;
+  url)
+    u=$(field "$key" url)
+    if [ -n "$u" ]; then echo "$u"; else echo "no sandbox tracked for '$key'" >&2; exit 1; fi
+    ;;
   logs)  touch "$BOXES_DIR/$key.log"; tail -n +1 -f "$BOXES_DIR/$key.log" ;;
   sync)
     # Run in the FOREGROUND so the exit status is the worker's own (a backgrounded
@@ -292,6 +301,11 @@ case "$cmd" in
     l=$(label_from_cwd)
     payload=$(jq -cn --arg k "$key" --arg b "$b" --arg p "$p" --arg l "$l" \
       '{key:$k, label:$l, branch:$b, worktreePath:$p, workspaceId:"", op:"sync"}')
+    # sync provisions a fresh box when none is tracked yet — say so, so it isn't a
+    # silent (billable) surprise for someone who expected an existing box to update.
+    if [ -z "$(field "$key" sandboxId)" ]; then
+      echo "no sandbox tracked for '$key' yet — provisioning a fresh one (creates a billable box)…"
+    fi
     echo "re-uploading '$key' worktree into its sandbox…"
     "$node_bin" "$PLUGIN_DIR/src/provision.js" "$payload"
     ;;
@@ -322,8 +336,12 @@ case "$cmd" in
     fi
     payload=$(jq -cn --arg k "$key" --arg d "$dest" '{key:$k, destRoot:$d}')
     echo "pulling sandbox '$key' → $dest …"
-    "$node_bin" "$PLUGIN_DIR/src/download.js" "$payload"
-    git -C "$dest" rev-parse --git-dir >/dev/null 2>&1 && echo "review:  git -C '$dest' diff"
+    # Propagate a download failure (set -e isn't on) instead of masking it with the
+    # trailing git/echo below.
+    "$node_bin" "$PLUGIN_DIR/src/download.js" "$payload" || exit $?
+    # `if` (not `&&`) so a non-git $dest doesn't leave the failing rev-parse status
+    # (128) as this case arm's — and the script's — exit code on a successful pull.
+    if git -C "$dest" rev-parse --git-dir >/dev/null 2>&1; then echo "review:  git -C '$dest' diff"; fi
     ;;
   kill)
     sid=$(field "$key" sandboxId)
