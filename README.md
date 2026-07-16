@@ -70,15 +70,20 @@ input, `chmod 600`); it skips this silently during `herdr plugin install`
 Create worktrees the way you normally do — nothing happens until you send one
 up. In the worktree you want in the cloud:
 
-    e2b-box            # provision (if needed) + open the sandbox shell (spinner while booting)
-    e2b-box up         # provision in the background, don't attach
-    e2b-box status     # this worktree's sandbox record (status, sandbox id, url)
-    e2b-box list       # every tracked sandbox
-    e2b-box url        # preview URL (https://<port>-<id>.e2b.app)
-    e2b-box logs       # tail provisioning progress
-    e2b-box sync       # re-upload the current worktree into its sandbox (local → sandbox)
-    e2b-box pull       # download the sandbox's files back into this folder (sandbox → local)
-    e2b-box kill       # kill this worktree's sandbox
+    e2b-box                # provision (if needed) + open the sandbox shell (spinner while booting)
+    e2b-box up             # provision in the background, don't attach
+    e2b-box shell          # attach to an existing sandbox (won't create a fresh one)
+    e2b-box status         # this worktree's sandbox record (status, template, sandbox id, url)
+    e2b-box list           # every tracked sandbox
+    e2b-box url            # preview URL (https://<port>-<id>.e2b.app)
+    e2b-box logs           # tail provisioning progress
+    e2b-box sync           # re-upload the current worktree into its sandbox (local → sandbox)
+    e2b-box pull [--force] # download the sandbox's files back into this folder (sandbox → local)
+    e2b-box kill           # kill this worktree's sandbox
+
+`status`/`list` show the **last known** state — a sandbox marked `ready` may have
+since paused or idle-timed-out on E2B's side; `e2b-box open` reconciles (and
+reprovisions if it's gone).
 
 `e2b-box` (no args) also works in a plain worktree that predates the plugin — it
 provisions a sandbox on the spot.
@@ -198,8 +203,10 @@ preview port, upload batch size, ignore list).
 - **Sync is on-demand, not continuous** — `e2b-box sync` pushes local → sandbox and
   `e2b-box pull` brings sandbox → local (git-aware, honors `.gitignore`). `pull` only
   writes files that differ and **reports each one** (`+ new` / `~ overwrote`),
-  leaves unchanged files untouched, never deletes local-only files, and warns
-  before clobbering a dirty git tree or a non-git folder. Review with `git diff`.
+  leaves unchanged files untouched, and never deletes local-only files. On a dirty
+  git tree or a non-git folder it **prompts** when interactive and **aborts** when
+  not (e.g. a herdr action or a script) — pass `--force` to overwrite unattended.
+  Review with `git diff`.
 - **Symlinks are skipped** during upload.
 - **One sandbox per worktree/folder**, keyed by the folder's **path** (so
   same-named folders in different locations don't collide); the folder name is the
