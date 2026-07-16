@@ -12,8 +12,10 @@ if (!sid) process.exit(0)
 const apiKey = requireApiKey(loadConfig())
 try {
   // Bound the request so a teardown hook can't hang on a flaky network.
-  await Sandbox.kill(sid, { apiKey, requestTimeoutMs: 15000 })
-  console.log(`killed ${sid}`)
+  // Sandbox.kill returns false (doesn't throw) when the box is already gone
+  // (idle-timed-out / never existed); only an explicit false means "not killed".
+  const res = await Sandbox.kill(sid, { apiKey, requestTimeoutMs: 15000 })
+  console.log(res === false ? `sandbox ${sid} already gone` : `killed ${sid}`)
 } catch (e) {
   const msg = (e && e.message) || String(e)
   // Already gone (idle-timed-out / never existed) — nothing to do.
