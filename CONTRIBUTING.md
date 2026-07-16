@@ -1,5 +1,8 @@
 # Contributing to herdr-e2b
 
+New here? [`ARCHITECTURE.md`](ARCHITECTURE.md) maps the codebase (the bash/Node/Rust
+layers, the data flow, the state model, and the invariants worth checking).
+
 ## Dev setup
 
 - Requirements: **Node ≥ 22**, **jq**, **git**. Optional: **Rust** (only to build
