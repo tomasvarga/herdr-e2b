@@ -24,6 +24,14 @@ mkdir -p "$BIN"
 ln -sf "$DIR/bin/e2b-box" "$BIN/e2b-box"
 echo "herdr-e2b: linked e2b-box -> $BIN/e2b-box"
 
+# Make sure that bin dir is actually on PATH — otherwise the first thing a new
+# user types ('e2b-box') is a 'command not found'. Warn with the exact fix.
+case ":$PATH:" in
+  *":$BIN:"*) ;;
+  *) echo "  ! $BIN is not on your PATH — add it, e.g.:"
+     echo "      echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.zshrc   # (or ~/.bashrc), then restart your shell" ;;
+esac
+
 command -v e2b >/dev/null 2>&1 || echo "  ! e2b CLI not found — 'npm i -g @e2b/cli' (needed for the sandbox shell)"
 
 # Optional dashboard TUI (Rust/Ratatui). Prefer a committed PREBUILT binary so no

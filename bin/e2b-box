@@ -11,7 +11,8 @@
 #   e2b-box url        print the preview URL
 #   e2b-box logs       tail the provisioning log
 #   e2b-box sync       re-upload the current worktree into its sandbox (local → sandbox)
-#   e2b-box pull       download the sandbox's files back into this folder (sandbox → local)
+#   e2b-box pull       download the sandbox's files back into this folder (sandbox → local;
+#                      aborts on a dirty/non-git tree unless --force)
 #   e2b-box kill       kill this worktree's sandbox
 set -uo pipefail
 # Resolve through the ~/.local/bin symlink to the real script dir so we can
@@ -77,21 +78,28 @@ field() { rec "$1" | jq -r --arg f "$2" '.[$f] // empty' 2>/dev/null; }
 # Marks the record "provisioning" but PRESERVES a known sandboxId so the worker
 # can reconnect to (and resume) an existing sandbox instead of always creating fresh.
 provision_from_cwd() {
-  local k="$1" op="${2:-ensure}" b p l sid payload node_bin
+  local k="$1" op="${2:-ensure}" b p l sid tpl payload node_bin
   b=""; at_repo_root && b=$(git_branch); [ "$b" = "HEAD" ] && b=""
   p=$(box_root)
   l=$(label_from_cwd)
+  # This fn REPLACES the record wholesale (not a merge), so carry the identity
+  # fields forward — otherwise a re-provision orphans the live sandbox (lost id)
+  # or drops the resolved template (empties the dashboard/list column).
+  sid=$(field "$k" sandboxId)
+  tpl=$(field "$k" template)
   node_bin=$(e2b_node) || node_bin=""
   if [ -z "$node_bin" ]; then
-    jq -cn --arg k "$k" --arg b "$b" --arg p "$p" --arg l "$l" \
-      '{key:$k, label:$l, status:"failed", step:"needs Node >= 22 (set HERDR_E2B_NODE)", branch:$b, worktreePath:$p, workspaceId:""}' \
+    jq -cn --arg k "$k" --arg b "$b" --arg p "$p" --arg l "$l" --arg sid "$sid" --arg tpl "$tpl" \
+      '{key:$k, label:$l, status:"failed", step:"needs Node >= 22 (set HERDR_E2B_NODE)", branch:$b, worktreePath:$p, workspaceId:""}
+         + (if $sid != "" then {sandboxId:$sid} else {} end)
+         + (if $tpl != "" then {template:$tpl} else {} end)' \
       > "$BOXES_DIR/$k.json"
     return 1
   fi
-  sid=$(field "$k" sandboxId)
-  jq -cn --arg k "$k" --arg b "$b" --arg p "$p" --arg l "$l" --arg sid "$sid" \
+  jq -cn --arg k "$k" --arg b "$b" --arg p "$p" --arg l "$l" --arg sid "$sid" --arg tpl "$tpl" \
     '{key:$k, label:$l, status:"provisioning", step:"queued", branch:$b, worktreePath:$p, workspaceId:""}
-       + (if $sid != "" then {sandboxId:$sid} else {} end)' \
+       + (if $sid != "" then {sandboxId:$sid} else {} end)
+       + (if $tpl != "" then {template:$tpl} else {} end)' \
     > "$BOXES_DIR/$k.json"
   payload=$(jq -cn --arg k "$k" --arg b "$b" --arg p "$p" --arg l "$l" --arg op "$op" \
     '{key:$k, label:$l, branch:$b, worktreePath:$p, workspaceId:"", op:$op}')
@@ -148,7 +156,7 @@ connect_shell() {
   ensure_e2b_key
   if ! command -v e2b >/dev/null 2>&1; then
     echo "  ! e2b CLI not found — 'npm i -g @e2b/cli'. Then: e2b sandbox connect $sid" >&2
-    exec bash -i
+    exit 1
   fi
   # The sandbox was just ensured live (reconnected/resumed) by provision.js, so
   # `e2b sandbox connect` can attach directly — no separate resume needed.
@@ -169,7 +177,48 @@ connect_shell() {
   echo "  ! this pane has no interactive terminal, so I can't attach a live shell."
   echo "    run in any terminal:  e2b sandbox connect $sid"
   echo "    or open it:  ${url:-https://e2b.dev/dashboard/inspect/sandbox/$sid}"
-  exec bash -i
+  # Don't drop into a bare local shell (it isn't the sandbox and reads as if it
+  # were). The box is up; the lines above say how to attach.
+  exit 0
+}
+
+# Spin on the sandbox record until it's ready. $1=key, $2=verb ("booting"/"syncing").
+# Renders the spinner only on a TTY, so headless callers (herdr actions, scripts)
+# get clean output. Returns 0 when ready; prints the failure and returns 1 on a
+# failed provision, a timeout, or a vanished record.
+spin_until_ready() {
+  local k="$1" verb="$2" raw st step laststep frames f i max missing lbl tty=0
+  [ -t 1 ] && tty=1
+  lbl=$(field "$k" label); : "${lbl:=$k}"
+  frames='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'; i=0; max=4000   # ~20 min at 0.3s/iter
+  missing=0; laststep="starting"
+  while :; do
+    raw=$(rec "$k")
+    st=$(printf '%s' "$raw" | jq -r '.status // empty' 2>/dev/null)
+    step=$(printf '%s' "$raw" | jq -r '.step // empty' 2>/dev/null)
+    [ -n "$step" ] && laststep="$step"
+    case "$st" in
+      ready) break ;;
+      failed) [ "$tty" = 1 ] && printf '\r\033[K'; echo "✗ E2B sandbox failed: ${step:-$laststep}"; echo "  see: e2b-box logs"; return 1 ;;
+      "")  # transient (mid-write / just before first write) — tolerate briefly
+        missing=$((missing + 1))
+        if [ "$missing" -ge 20 ]; then
+          [ "$tty" = 1 ] && printf '\r\033[K'; echo "sandbox record for '$k' went away — see: e2b-box logs"; return 1
+        fi ;;
+      *) missing=0 ;;
+    esac
+    if [ "$i" -ge "$max" ]; then
+      [ "$tty" = 1 ] && printf '\r\033[K'; echo "timed out waiting for sandbox '$k' (last: $laststep). see: e2b-box logs"; return 1
+    fi
+    if [ "$tty" = 1 ]; then
+      f=${frames:$((i % ${#frames})):1}
+      printf '\r\033[K%s  %s E2B sandbox for %s … %s' "$f" "$verb" "$lbl" "$laststep"
+    fi
+    i=$((i + 1))
+    sleep 0.3
+  done
+  [ "$tty" = 1 ] && printf '\r\033[K'
+  return 0
 }
 
 # Boot (ensure) the sandbox and attach a shell. provision.js is the single source of
@@ -179,7 +228,7 @@ connect_shell() {
 #   create_missing=0 (shell) errors instead, so `shell` only attaches to a sandbox
 #                    you already have.
 boot_and_connect() {
-  local create_missing="$1" st raw step laststep frames f i max missing
+  local create_missing="$1" st
   st=$(field "$key" status)
 
   # Optimistic connect: if we already have a `ready` record with a sandbox id,
@@ -187,7 +236,13 @@ boot_and_connect() {
   # already live (the common "reopen" case). On a fast failure (idle-timed-out /
   # paused) connect_shell returns non-zero and we fall through to provision +
   # resume below (which also auto-heals a dead box).
-  if [ "$st" = "ready" ] && [ -n "$(field "$key" sandboxId)" ]; then
+  #
+  # ONLY with a TTY: the real `e2b sandbox connect` attempt IS the liveness check
+  # here. With no TTY connect_shell can't attach and just prints instructions — so
+  # a stale `ready` record would have it point at a dead box without reconciling.
+  # Headless callers therefore skip this and go through `ensure` below (an SDK
+  # reconnect/resume, or recreate if gone), so the box is verified live first.
+  if [ "$st" = "ready" ] && [ -n "$(field "$key" sandboxId)" ] && [ -t 0 ] && [ -t 1 ]; then
     connect_shell "$key" && exit 0
     echo "  sandbox wasn't reachable — reprovisioning…"
   fi
@@ -199,33 +254,8 @@ boot_and_connect() {
     fi
     provision_from_cwd "$key" ensure
   fi
-  # Spin until ready, bounded so a hung provision can't loop forever.
-  local lbl; lbl=$(field "$key" label); : "${lbl:=$key}"
-  frames='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'; i=0; max=4000   # ~20 min at 0.3s/iter
-  missing=0; laststep="starting"
-  while :; do
-    raw=$(rec "$key")
-    st=$(printf '%s' "$raw" | jq -r '.status // empty' 2>/dev/null)
-    step=$(printf '%s' "$raw" | jq -r '.step // empty' 2>/dev/null)
-    [ -n "$step" ] && laststep="$step"
-    case "$st" in
-      ready) break ;;
-      failed) printf '\r\033[K'; echo "✗ E2B sandbox failed: ${step:-$laststep}"; echo "  see: e2b-box logs"; exit 1 ;;
-      "")  # transient (mid-write / just before first write) — tolerate briefly
-        missing=$((missing + 1))
-        if [ "$missing" -ge 20 ]; then
-          printf '\r\033[K'; echo "sandbox record for '$key' went away — see: e2b-box logs"; exit 1
-        fi ;;
-      *) missing=0 ;;
-    esac
-    if [ "$i" -ge "$max" ]; then
-      printf '\r\033[K'; echo "timed out waiting for sandbox '$key' (last: $laststep). see: e2b-box logs"; exit 1
-    fi
-    f=${frames:$((i % ${#frames})):1}; i=$((i + 1))
-    printf '\r\033[K%s  booting E2B sandbox for %s … %s' "$f" "$lbl" "$laststep"
-    sleep 0.3
-  done
-  printf '\r\033[K'
+  # Spin until ready (bounded so a hung provision can't loop forever), then attach.
+  spin_until_ready "$key" "booting" || exit 1
   connect_shell "$key" || { echo "✗ couldn't attach to '$key' — see: e2b-box logs" >&2; exit 1; }
 }
 
@@ -236,55 +266,82 @@ key="${KEY:-$(key_from_cwd)}"
 
 case "$cmd" in
   status)
-    r=$(rec "$key"); [ -n "$r" ] && printf '%s\n' "$r" | jq . || echo "no sandbox tracked for '$key'"
+    r=$(rec "$key")
+    if [ -n "$r" ]; then
+      printf '%s\n' "$r" | jq .
+      [ "$(field "$key" status)" = ready ] && \
+        echo "note: status is last known — a 'ready' box may be paused/idle-timed-out; 'e2b-box open' reconciles." >&2
+    else
+      echo "no sandbox tracked for '$key'"
+    fi
     ;;
   list)
     shopt -s nullglob
     files=("$BOXES_DIR"/*.json)
     if [ ${#files[@]} -eq 0 ]; then echo "no sandboxes"; else
-      printf '%-24s %-13s %-22s %s\n' BOX STATUS SANDBOX URL
+      printf '%-20s %-12s %-10s %-22s %s\n' BOX STATUS TEMPLATE SANDBOX URL
       for f in "${files[@]}"; do
-        jq -r '[(.label // .key), (.status // "-"), (.sandboxId // "-"), (.url // "-")] | @tsv' "$f"
-      done | while IFS=$'\t' read -r k s sid u; do printf '%-24s %-13s %-22s %s\n' "$k" "$s" "$sid" "$u"; done
+        jq -r '[(.label // .key), (.status // "-"), (.template // "-"), (.sandboxId // "-"), (.url // "-")] | @tsv' "$f"
+      done | while IFS=$'\t' read -r k s tpl sid u; do printf '%-20s %-12s %-10s %-22s %s\n' "$k" "$s" "$tpl" "$sid" "$u"; done
+      echo "status is last known — a 'ready' box may be paused/idle-timed-out; 'e2b-box open' reconciles." >&2
     fi
     ;;
-  url)   field "$key" url ;;
+  url)
+    u=$(field "$key" url)
+    if [ -n "$u" ]; then echo "$u"; else echo "no sandbox tracked for '$key'" >&2; exit 1; fi
+    ;;
   logs)  touch "$BOXES_DIR/$key.log"; tail -n +1 -f "$BOXES_DIR/$key.log" ;;
   sync)
+    # Run in the FOREGROUND so the exit status is the worker's own (a backgrounded
+    # worker + record-poll can't tell this sync's result from a concurrent one).
+    # provision.js streams its steps to stderr on a TTY, so this isn't silent.
     node_bin=$(e2b_node) || { echo "needs Node >= 22 (set HERDR_E2B_NODE)"; exit 1; }
     b=""; at_repo_root && b=$(git_branch); [ "$b" = "HEAD" ] && b=""
     p=$(box_root)
     l=$(label_from_cwd)
     payload=$(jq -cn --arg k "$key" --arg b "$b" --arg p "$p" --arg l "$l" \
       '{key:$k, label:$l, branch:$b, worktreePath:$p, workspaceId:"", op:"sync"}')
+    # sync provisions a fresh box when none is tracked yet — say so, so it isn't a
+    # silent (billable) surprise for someone who expected an existing box to update.
+    if [ -z "$(field "$key" sandboxId)" ]; then
+      echo "no sandbox tracked for '$key' yet — provisioning a fresh one (creates a billable box)…"
+    fi
     echo "re-uploading '$key' worktree into its sandbox…"
     "$node_bin" "$PLUGIN_DIR/src/provision.js" "$payload"
     ;;
   pull|download)
+    force=0
+    for a in "$@"; do case "$a" in --force|--yes|-y|-f) force=1 ;; esac; done
     node_bin=$(e2b_node) || { echo "needs Node >= 22 (set HERDR_E2B_NODE)"; exit 1; }
     st=$(field "$key" status)
     [ "$st" = "ready" ] || { echo "no ready sandbox for '$key' — nothing to pull"; exit 1; }
     dest=$(box_root)
-    # Safety: pull overwrites local files with the sandbox's versions. Warn on a
-    # dirty git tree (uncommitted work could be clobbered) and on a non-git
-    # folder (no `git diff` to review, no way to undo).
+    # Safety: pull overwrites local files with the sandbox's versions. On a dirty git
+    # tree (uncommitted work at risk) or a non-git folder (no `git diff`/undo), require
+    # explicit consent — prompt when interactive, else ABORT unless --force is given.
+    # Never silently clobber a non-interactive caller (e.g. a herdr action, a script).
+    risk=""
     if git -C "$dest" rev-parse --git-dir >/dev/null 2>&1; then
-      if [ -n "$(git -C "$dest" status --porcelain 2>/dev/null)" ]; then
-        echo "⚠️  $dest has uncommitted changes — pull overwrites files from the sandbox."
-        if [ -t 0 ]; then
-          printf "continue? [y/N] "; read -r ans; case "$ans" in [Yy]*) ;; *) echo "aborted"; exit 0 ;; esac
-        fi
-      fi
+      [ -n "$(git -C "$dest" status --porcelain 2>/dev/null)" ] && risk="$dest has uncommitted changes"
     else
-      echo "⚠️  $dest is not a git repo — overwrites can't be reviewed or undone via git."
+      risk="$dest is not a git repo (overwrites can't be reviewed or undone via git)"
+    fi
+    if [ -n "$risk" ] && [ "$force" -ne 1 ]; then
+      echo "⚠️  $risk — pull overwrites files from the sandbox."
       if [ -t 0 ]; then
         printf "continue? [y/N] "; read -r ans; case "$ans" in [Yy]*) ;; *) echo "aborted"; exit 0 ;; esac
+      else
+        echo "aborted (non-interactive) — re-run with --force to overwrite." >&2; exit 1
       fi
     fi
     payload=$(jq -cn --arg k "$key" --arg d "$dest" '{key:$k, destRoot:$d}')
     echo "pulling sandbox '$key' → $dest …"
-    "$node_bin" "$PLUGIN_DIR/src/download.js" "$payload"
-    git -C "$dest" rev-parse --git-dir >/dev/null 2>&1 && echo "review:  git -C '$dest' diff"
+    # Propagate a download failure (set -e isn't on) instead of masking it with the
+    # trailing git/echo below.
+    "$node_bin" "$PLUGIN_DIR/src/download.js" "$payload" || exit $?
+    # `if` (not `&&`) so a non-git $dest doesn't leave the failing rev-parse status
+    # (128) as this case arm's — and the script's — exit code on a successful pull.
+    if git -C "$dest" rev-parse --git-dir >/dev/null 2>&1; then echo "review:  git -C '$dest' diff"; fi
     ;;
   kill)
     sid=$(field "$key" sandboxId)
@@ -322,7 +379,7 @@ case "$cmd" in
     boot_and_connect 1
     ;;
   *)
-    echo "usage: e2b-box [open|up|shell|status|list|url|logs|sync|pull|kill]" >&2
+    echo "usage: e2b-box [open|up|shell|status|list|url|logs|sync|pull [--force]|kill]" >&2
     exit 2
     ;;
 esac

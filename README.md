@@ -1,5 +1,7 @@
 # herdr-e2b
 
+[![CI](https://github.com/tomasvarga/herdr-e2b/actions/workflows/ci.yml/badge.svg)](https://github.com/tomasvarga/herdr-e2b/actions/workflows/ci.yml)
+
 Send a [herdr](https://herdr.dev) git worktree to a fresh [E2B](https://e2b.dev)
 cloud sandbox **on demand** — a **snapshot upload of the live tree, uncommitted
 changes and all** (no push, no clone, no creds). Press `prefix+shift+e` in a
@@ -53,32 +55,48 @@ copy of your worktree.
 
 ## Install
 
+**1. Install the plugin** (the build step installs deps + links `e2b-box` onto PATH):
+
     herdr plugin install tomasvarga/herdr-e2b
 
-Local dev: `herdr plugin link /path/to/herdr-e2b` then `./install.sh`.
-Then bind a key to the `plugin.herdr-e2b.open` action — e.g. `prefix+shift+e`.
-(Avoid plain `prefix+e`: that's herdr's built-in `edit_scrollback`.)
+**2. Set your E2B API key** — [get one](https://e2b.dev/dashboard), then either run
+`./install.sh` once from a terminal (it prompts and saves it, hidden input,
+`chmod 600`) **or** add it to the plugin config yourself:
 
-The build step runs `npm install` (pulls the `e2b` SDK) and links `e2b-box`
-onto your PATH. Run interactively (`./install.sh` from a terminal), it also
-**prompts for your E2B API key** and saves it to the plugin config (hidden
-input, `chmod 600`); it skips this silently during `herdr plugin install`
-(no TTY) — set the key later then. It won't overwrite an existing config.
+    # ~/.config/herdr/plugins/config/herdr-e2b/config.toml
+    [secrets]
+    e2b_api_key = "e2b_…"
+
+(An `E2B_API_KEY` env var also works and wins if set.)
+
+**3. Bind a key** to the `open` action — e.g. `prefix+shift+e` (avoid plain
+`prefix+e`, which is herdr's `edit_scrollback`):
+
+    [[keys.command]]
+    key = "prefix+shift+e"
+    command = "herdr plugin action invoke open --plugin herdr-e2b"
+
+> Local dev: `herdr plugin link /path/to/herdr-e2b && ./install.sh`.
 
 ## Use
 
 Create worktrees the way you normally do — nothing happens until you send one
 up. In the worktree you want in the cloud:
 
-    e2b-box            # provision (if needed) + open the sandbox shell (spinner while booting)
-    e2b-box up         # provision in the background, don't attach
-    e2b-box status     # this worktree's sandbox record (status, sandbox id, url)
-    e2b-box list       # every tracked sandbox
-    e2b-box url        # preview URL (https://<port>-<id>.e2b.app)
-    e2b-box logs       # tail provisioning progress
-    e2b-box sync       # re-upload the current worktree into its sandbox (local → sandbox)
-    e2b-box pull       # download the sandbox's files back into this folder (sandbox → local)
-    e2b-box kill       # kill this worktree's sandbox
+    e2b-box                # provision (if needed) + open the sandbox shell (spinner while booting)
+    e2b-box up             # provision in the background, don't attach
+    e2b-box shell          # attach to an existing sandbox (won't create a fresh one)
+    e2b-box status         # this worktree's sandbox record (status, template, sandbox id, url)
+    e2b-box list           # every tracked sandbox
+    e2b-box url            # preview URL (https://<port>-<id>.e2b.app)
+    e2b-box logs           # tail provisioning progress
+    e2b-box sync           # re-upload the current worktree into its sandbox (local → sandbox; provisions one if none yet)
+    e2b-box pull [--force] # download the sandbox's files back into this folder (sandbox → local)
+    e2b-box kill           # kill this worktree's sandbox
+
+`status`/`list` show the **last known** state — a sandbox marked `ready` may have
+since paused or idle-timed-out on E2B's side; `e2b-box open` reconciles (and
+reprovisions if it's gone).
 
 `e2b-box` (no args) also works in a plain worktree that predates the plugin — it
 provisions a sandbox on the spot.
@@ -145,17 +163,28 @@ trying the flow, but tight on disk with no toolchain.
 ### Recommended: a bigger custom template
 
 For real work, build a custom E2B template once — **more disk + CPU**, with your
-toolchain (node/pnpm/etc. or a coding agent) baked in — and point the config at it:
+toolchain (node/pnpm/etc. or a coding agent) baked in. E2B fixes resources at build
+time, so a custom template is how you get a roomier sandbox that boots ready.
+
+**Quick setup — paste this to your coding agent** (Claude Code, Codex, …) in this repo:
+
+```
+Set up a custom E2B sandbox template for me and wire it into herdr-e2b:
+1. Create an `e2b.Dockerfile` FROM e2bdev/base with git, ripgrep, Node 22 + pnpm,
+   and my project's toolchain. Give it a roomy disk.
+2. Run `e2b template build --name my-herdr-sandbox` (I'm logged in via `e2b auth login`).
+3. Set `[sandbox].template = "my-herdr-sandbox"` in
+   ~/.config/herdr/plugins/config/herdr-e2b/config.toml
+Docs: https://e2b.dev/docs/sandbox-template
+```
+
+Or do it by hand — `e2b template build --name my-herdr-sandbox` (E2B's
+[template docs](https://e2b.dev/docs/sandbox-template)) — then point the config at it:
 
 ```toml
 [sandbox]
 template = "my-herdr-sandbox"
 ```
-
-E2B fixes resources at build time, so a custom template is how you get a roomier
-sandbox that boots ready. Build it with `e2b template build` (E2B's
-[template docs](https://e2b.dev/docs/sandbox-template)) — or ask your coding
-agent to set one up. `install.sh` prints this reminder.
 
 ### Public agent templates
 
@@ -195,22 +224,20 @@ preview port, upload batch size, ignore list).
 
 ## Limitations (v0.1)
 
-- **Sync is on-demand, not continuous** — `e2b-box sync` pushes local → sandbox and
-  `e2b-box pull` brings sandbox → local (git-aware, honors `.gitignore`). `pull` only
-  writes files that differ and **reports each one** (`+ new` / `~ overwrote`),
-  leaves unchanged files untouched, never deletes local-only files, and warns
-  before clobbering a dirty git tree or a non-git folder. Review with `git diff`.
+- **Sync is on-demand, not continuous.** `e2b-box sync` pushes local → sandbox;
+  `e2b-box pull` brings sandbox → local (git-aware, honors `.gitignore`). `pull`
+  writes only files that differ, reports each (`+ new` / `~ overwrote`), never
+  deletes local-only files, and on a dirty or non-git tree **prompts** interactively
+  or **aborts** when headless (pass `--force` to overwrite). Review with `git diff`.
 - **Symlinks are skipped** during upload.
-- **One sandbox per worktree/folder**, keyed by the folder's **path** (so
-  same-named folders in different locations don't collide); the folder name is the
-  display label.
-- Removing a worktree **kills** its sandbox (cost control) — this is intentional.
-- **Sandboxes idle-time-out** after `[sandbox].timeout_ms` (default 1h, and the cap
-  on E2B's free tier). If the sandbox has died, `e2b-box open` detects it and
-  **reprovisions** a fresh one rather than failing. Bump `timeout_ms` (paid plan)
-  for longer-lived sandboxes, or set `[sandbox].auto_pause = true` (**works on the free tier**) to **pause instead of kill** on timeout — reconnecting resumes
-  the sandbox with its state instead of starting fresh. On the free tier (1h cap) this is the
-  best way to not lose in-sandbox work when the timeout hits.
+- **One sandbox per worktree/folder**, keyed by the folder's **path** (same-named
+  folders in different locations don't collide); the folder name is the display label.
+- Removing a worktree **kills** its sandbox (cost control) — intentional.
+- **Sandboxes idle-time-out** after `[sandbox].timeout_ms` (default 1h, the free-tier
+  cap). `e2b-box open` detects a dead box and **reprovisions**. For longer sessions,
+  bump `timeout_ms` (paid plan) or set `[sandbox].auto_pause = true` — which **works
+  on the free tier** and pauses (state preserved) instead of killing, so reconnecting
+  resumes where you left off. That's the best way to keep in-sandbox work past the 1h cap.
 
 ## License
 

@@ -7,35 +7,34 @@
 import { writeFile, readFile, mkdir, appendFile, lstat, realpath } from "node:fs/promises"
 import path from "node:path"
 import { posix } from "node:path"
+import { fileURLToPath } from "node:url"
 import { Sandbox } from "e2b"
 
 import { loadConfig } from "./config.js"
 import { requireApiKey } from "./shared.js"
 import { readRecord, logPath } from "./store.js"
 
-const input = JSON.parse(process.argv[2] || "{}")
-const { key, destRoot } = input
-if (!key || !destRoot) {
-  console.error("download: missing key/destRoot")
-  process.exit(2)
-}
-
-const cfg = loadConfig()
-
-async function log(msg) {
-  try {
-    await appendFile(logPath(key), `[${new Date().toISOString()}] ${msg}\n`)
-  } catch {
-    // best effort
-  }
-}
-
-function isIgnored(rel, ignore) {
+export function isIgnored(rel, ignore) {
   const segs = rel.split("/")
   return ignore.some((p) => rel === p || rel.startsWith(`${p}/`) || segs.includes(p))
 }
 
-async function main() {
+/** A remote-relative path we must never write to: absolute, or escaping via `..`.
+ * (The symlink/realpath containment check lives in safeDest, which needs the FS.) */
+export function relIsUnsafe(rel) {
+  return path.isAbsolute(rel) || rel.split("/").includes("..")
+}
+
+async function main({ key, destRoot }) {
+  const cfg = loadConfig()
+  const log = async (msg) => {
+    try {
+      await appendFile(logPath(key), `[${new Date().toISOString()}] ${msg}\n`)
+    } catch {
+      // best effort
+    }
+  }
+
   const apiKey = requireApiKey(cfg)
   const rec = await readRecord(key)
   if (!rec?.sandboxId) {
@@ -63,7 +62,7 @@ async function main() {
   // the worktree root — so a pre-existing local symlink can't redirect a write.
   const rootReal = await realpath(destRoot)
   async function safeDest(rel) {
-    if (path.isAbsolute(rel) || rel.split("/").includes("..")) return null
+    if (relIsUnsafe(rel)) return null
     const dest = path.join(destRoot, rel)
     try {
       if ((await lstat(dest)).isSymbolicLink()) return null // don't follow it
@@ -128,7 +127,17 @@ async function main() {
   await log(`pull: ${added.length} new, ${overwritten.length} overwritten, ${unchanged} unchanged, ${skipped.length} skipped → ${destRoot}`)
 }
 
-main().catch((err) => {
-  console.error((err && err.message) || String(err))
-  process.exit(1)
-})
+// Script entry — only when run directly (node download.js '<json>'), so tests can
+// import the pure helpers (isIgnored / relIsUnsafe) above without triggering the
+// CLI's argv parsing / process.exit.
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const input = JSON.parse(process.argv[2] || "{}")
+  if (!input.key || !input.destRoot) {
+    console.error("download: missing key/destRoot")
+    process.exit(2)
+  }
+  main(input).catch((err) => {
+    console.error((err && err.message) || String(err))
+    process.exit(1)
+  })
+}

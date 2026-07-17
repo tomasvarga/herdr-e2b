@@ -59,6 +59,10 @@ async function step(label, extra = {}) {
     ...extra,
   })
   await log(label)
+  // Foreground callers (e.g. `e2b-box sync`) get live progress; backgrounded
+  // workers (open/up) have stderr going to the log file (not a TTY), so this
+  // stays quiet there and the spinner reads `step` from the record instead.
+  if (process.stderr.isTTY) process.stderr.write(`  ${label}\n`)
 }
 
 async function main() {
@@ -93,6 +97,7 @@ async function main() {
   if (!sandbox) {
     notify("E2B", `Booting sandbox for ${branch || key}…`)
     const template = resolveTemplate(branch, cfg)
+    let usedTemplate = template
     await step(`creating sandbox (${template})`)
     const opts = {
       apiKey,
@@ -110,12 +115,13 @@ async function main() {
         notify("E2B", `Template '${template}' not found — using base`)
         await step("creating sandbox (base — fallback)")
         sandbox = await Sandbox.create("base", opts)
+        usedTemplate = "base"
       } else {
         throw e
       }
     }
     created = true
-    await writeRecord(key, { sandboxId: sandbox.sandboxId })
+    await writeRecord(key, { sandboxId: sandbox.sandboxId, template: usedTemplate })
   }
 
   await step("preparing project dir", { sandboxId: sandbox.sandboxId })
