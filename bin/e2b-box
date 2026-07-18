@@ -107,10 +107,22 @@ provision_from_cwd() {
   disown 2>/dev/null || true
 }
 
+# Describe the clobber risk of pulling into $1 — a dirty git tree (uncommitted work)
+# or a non-git folder (no `git diff`/undo) — or print nothing for a clean git tree.
+# Shared by the `pull` case and the on-close prompt so both guard the same way.
+pull_risk() {
+  local d="$1"
+  if git -C "$d" rev-parse --git-dir >/dev/null 2>&1; then
+    [ -n "$(git -C "$d" status --porcelain 2>/dev/null)" ] && printf '%s' "$d has uncommitted changes"
+  else
+    printf '%s' "$d is not a git repo (overwrites can't be reviewed or undone via git)"
+  fi
+}
+
 # After you exit the sandbox shell, decide what to do with the sandbox: pull your work
 # back down, kill it, or leave it (auto_pause will pause it at the timeout).
 on_close_prompt() {
-  local k="$1" sid="$2" ans dest node_bin lbl
+  local k="$1" sid="$2" ans a2 risk dest node_bin lbl
   lbl=$(field "$k" label); : "${lbl:=$k}"
   [ -t 0 ] || return 0   # non-interactive: leave the sandbox as-is
   echo
@@ -120,6 +132,14 @@ on_close_prompt() {
     p|P|pull)
       node_bin=$(e2b_node) || { echo "  needs Node >= 22 to pull"; return 0; }
       dest=$(box_root)
+      # Same clobber guard as `e2b-box pull`: confirm before overwriting a dirty or
+      # non-git tree. (This prompt is interactive — on_close only runs with a TTY.)
+      risk=$(pull_risk "$dest")
+      if [ -n "$risk" ]; then
+        echo "  ⚠️  $risk — pull overwrites files from the sandbox."
+        printf "  continue? [y/N] "; read -r a2
+        case "$a2" in [Yy]*) ;; *) echo "  skipped pull — sandbox left running."; return 0 ;; esac
+      fi
       echo "  pulling '$lbl' → $dest …"
       "$node_bin" "$PLUGIN_DIR/src/download.js" "$(jq -cn --arg k "$k" --arg d "$dest" '{key:$k,destRoot:$d}')"
       git -C "$dest" rev-parse --git-dir >/dev/null 2>&1 && echo "  review: git -C '$dest' diff"
@@ -156,7 +176,9 @@ connect_shell() {
   ensure_e2b_key
   if ! command -v e2b >/dev/null 2>&1; then
     echo "  ! e2b CLI not found — 'npm i -g @e2b/cli'. Then: e2b sandbox connect $sid" >&2
-    exit 1
+    # The box is ready; only an interactive caller (that wanted to attach now) should
+    # see this as a failure. Headless callers got the box + instructions → exit 0.
+    { [ -t 0 ] && [ -t 1 ]; } && exit 1 || exit 0
   fi
   # The sandbox was just ensured live (reconnected/resumed) by provision.js, so
   # `e2b sandbox connect` can attach directly — no separate resume needed.
@@ -190,7 +212,7 @@ spin_until_ready() {
   local k="$1" verb="$2" raw st step laststep frames f i max missing lbl tty=0
   [ -t 1 ] && tty=1
   lbl=$(field "$k" label); : "${lbl:=$k}"
-  frames='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'; i=0; max=4000   # ~20 min at 0.3s/iter
+  frames=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏); i=0; max=4000   # ~20 min at 0.3s/iter (array = locale-safe indexing)
   missing=0; laststep="starting"
   while :; do
     raw=$(rec "$k")
@@ -211,7 +233,7 @@ spin_until_ready() {
       [ "$tty" = 1 ] && printf '\r\033[K'; echo "timed out waiting for sandbox '$k' (last: $laststep). see: e2b-box logs"; return 1
     fi
     if [ "$tty" = 1 ]; then
-      f=${frames:$((i % ${#frames})):1}
+      f=${frames[$((i % ${#frames[@]}))]}
       printf '\r\033[K%s  %s E2B sandbox for %s … %s' "$f" "$verb" "$lbl" "$laststep"
     fi
     i=$((i + 1))
@@ -320,12 +342,7 @@ case "$cmd" in
     # tree (uncommitted work at risk) or a non-git folder (no `git diff`/undo), require
     # explicit consent — prompt when interactive, else ABORT unless --force is given.
     # Never silently clobber a non-interactive caller (e.g. a herdr action, a script).
-    risk=""
-    if git -C "$dest" rev-parse --git-dir >/dev/null 2>&1; then
-      [ -n "$(git -C "$dest" status --porcelain 2>/dev/null)" ] && risk="$dest has uncommitted changes"
-    else
-      risk="$dest is not a git repo (overwrites can't be reviewed or undone via git)"
-    fi
+    risk=$(pull_risk "$dest")
     if [ -n "$risk" ] && [ "$force" -ne 1 ]; then
       echo "⚠️  $risk — pull overwrites files from the sandbox."
       if [ -t 0 ]; then

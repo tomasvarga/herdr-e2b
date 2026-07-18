@@ -1,5 +1,13 @@
 import { spawn } from "node:child_process"
 
+/** True if a repo-relative path matches an ignore entry — by exact match, path
+ * prefix (`p/`), or any path segment equal to `p`. Shared by upload + download so
+ * both apply the SAME ignore rules. */
+export function isIgnored(rel, ignore) {
+  const segs = rel.split("/")
+  return ignore.some((p) => rel === p || rel.startsWith(`${p}/`) || segs.includes(p))
+}
+
 // Resolve the E2B key from env or plugin config ([secrets].e2b_api_key).
 // Pass the loaded config so config-dir keys work without touching the env.
 export function requireApiKey(cfg) {

@@ -3,6 +3,8 @@ import { execFile } from "node:child_process"
 import path from "node:path"
 import { posix } from "node:path"
 
+import { isIgnored } from "./shared.js"
+
 /**
  * Upload the local worktree into the sandbox project directory. This is additive
  * (a re-sync writes current files but does NOT delete sandbox files you removed
@@ -107,11 +109,6 @@ async function collect(dir, root, ignore, state) {
     if (st.isFile()) out.push(rel)
   }
   return out
-}
-
-function isIgnored(rel, ignore) {
-  const segs = rel.split("/")
-  return ignore.some((p) => rel === p || rel.startsWith(`${p}/`) || segs.includes(p))
 }
 
 function chunk(items, size) {

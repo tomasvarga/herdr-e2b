@@ -2,7 +2,8 @@
 // to local disk, so a regression here is a data-safety issue.
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { isIgnored, relIsUnsafe } from "../src/download.js"
+import { relIsUnsafe } from "../src/download.js"
+import { isIgnored } from "../src/shared.js"
 
 const IGNORE = ["node_modules", ".env", ".git", "dist"]
 

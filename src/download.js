@@ -5,19 +5,15 @@
 //
 // Usage: node download.js '{"key":"...","destRoot":"/abs/local/folder"}'
 import { writeFile, readFile, mkdir, appendFile, lstat, realpath } from "node:fs/promises"
+import { realpathSync } from "node:fs"
 import path from "node:path"
 import { posix } from "node:path"
 import { fileURLToPath } from "node:url"
 import { Sandbox } from "e2b"
 
 import { loadConfig } from "./config.js"
-import { requireApiKey } from "./shared.js"
+import { requireApiKey, isIgnored } from "./shared.js"
 import { readRecord, logPath } from "./store.js"
-
-export function isIgnored(rel, ignore) {
-  const segs = rel.split("/")
-  return ignore.some((p) => rel === p || rel.startsWith(`${p}/`) || segs.includes(p))
-}
 
 /** A remote-relative path we must never write to: absolute, or escaping via `..`.
  * (The symlink/realpath containment check lives in safeDest, which needs the FS.) */
@@ -128,9 +124,19 @@ async function main({ key, destRoot }) {
 }
 
 // Script entry — only when run directly (node download.js '<json>'), so tests can
-// import the pure helpers (isIgnored / relIsUnsafe) above without triggering the
-// CLI's argv parsing / process.exit.
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// import the pure helpers (relIsUnsafe) above without triggering the CLI's argv
+// parsing / process.exit. Realpath BOTH sides: Node realpath-resolves the main
+// module, so comparing against a raw path.resolve would mismatch under a symlinked
+// invocation path and silently turn this into a no-op.
+let invokedDirectly = false
+try {
+  invokedDirectly =
+    !!process.argv[1] &&
+    realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
+} catch {
+  invokedDirectly = false
+}
+if (invokedDirectly) {
   const input = JSON.parse(process.argv[2] || "{}")
   if (!input.key || !input.destRoot) {
     console.error("download: missing key/destRoot")
